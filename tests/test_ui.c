@@ -77,7 +77,7 @@ int main(void) {
     assert(clears>=9);
     /* Hi-fi symbols occupy the left edge on Home and right edge on outputs. */
     for(unsigned page=0;page<=1;++page)for(unsigned running=0;running<=1;++running) {
-        ui.page=page;ui.running=running!=0;original_ui_render(&ui);
+        ui.page=page;ui.running=running!=0;ui.active=running!=0;original_ui_render(&ui);
         unsigned x=page?119u:0u;
         for(unsigned y=0;y<9;++y)for(unsigned col=0;col<9;++col) {
             unsigned distance=y>4?y-4:4-y;
@@ -97,6 +97,18 @@ int main(void) {
     (void)original_ui_update(&ui,15,200);(void)original_ui_update(&ui,15,220);
     assert(!ui.selecting && !ui.editing && ui.page==1);
 
+    /* Hold Home to enter globals; select Source, PPQN and Run independently. */
+    original_ui_init(&ui,15,0);now=30;
+    (void)original_ui_update(&ui,11,now);(void)original_ui_update(&ui,11,now+20);
+    assert(original_ui_update(&ui,11,now+520));assert(ui.selecting && !ui.editing && ui.field==0);
+    now+=550;(void)original_ui_update(&ui,15,now);assert(!original_ui_update(&ui,15,now+20));
+    click(&ui,4,&now);detent(&ui,1);assert(ui.external);click(&ui,4,&now);
+    detent(&ui,1);assert(ui.field==1);click(&ui,4,&now);
+    for(unsigned i=0;i<20;++i)detent(&ui,-1);assert(ui.ppqn_index==0);
+    for(unsigned i=0;i<20;++i)detent(&ui,1);assert(ui.ppqn_index==7);
+    click(&ui,4,&now);detent(&ui,1);assert(ui.field==2);click(&ui,4,&now);
+    for(unsigned i=0;i<5;++i)detent(&ui,1);assert(ui.run_mode==NF_RUN_RESET);
+    original_ui_render(&ui);
     pnw_oled_clear();assert(original_text(127,31,"W",3)>127);assert(pixels<=1);
     unsigned count=pixels;assert(original_text(UINT_MAX,0,"A",1)==UINT_MAX);assert(pixels==count);
     original_text(0,0,"A",0);assert(pixels==count);

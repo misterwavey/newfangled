@@ -1,8 +1,9 @@
 # Pam’s Newfangled Workout
 
-Independent v0.1 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
+Independent v0.2 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
 (STM32F042K6T6). Eight outputs with clock ratios, gate/triangle/ramps/random,
-width, phase, level and offset. Boots stopped; Stop returns all outputs to zero.
+width, phase, level and offset, plus external clock and Run/reset inputs. Boots
+stopped; Stop returns all outputs to zero.
 
 This repository contains only the Newfangled firmware, its source dependencies,
 build/DFU tools, the offline browser simulator, documentation and focused tests. It contains no stock firmware,
@@ -78,7 +79,8 @@ python3 tools/flash.py --write --serial YOUR_SERIAL --image build/newfangled/pnw
 
 Disconnect USB before reconnecting normal Eurorack power. This replaces application
 flash; the tool does not write option bytes. Keep a known-working restore image.
-The firmware does not use EEPROM, presets, external clock/CV assignments or expanders.
+The firmware does not use EEPROM, presets, CV assignments or expanders. External
+clock and Run/reset inputs are supported; see [synchronization](docs/synchronization.md).
 
 ## Controls
 
@@ -87,7 +89,10 @@ The firmware does not use EEPROM, presets, external clock/CV assignments or expa
 - On an output: click to browse parameters, turn to select one, click to edit its
   value, turn to adjust, click to return to parameter selection.
 - Hold the encoder for half a second to return directly to output browsing.
-- Start toggles playback. Hold the encoder and press Start to reset phase.
+- Hold the encoder on the BPM VIEW page to open SRC, PPQN and RUN settings.
+- Start arms/disarms playback. Hold the encoder and press Start to reset phase.
+- EXT waits for the incoming clock; Run GATE also requires the Run jack high.
+  A lost external clock stops outputs and never silently falls back to INT.
 
 Output identity and parameter name/value use two large-text rows. Transport uses
 a play triangle or stop square. See [firmware details](docs/firmware.md) for
@@ -96,7 +101,7 @@ defaults, abbreviations, timing limitations and the zero-output input diagnostic
 ## Source layout
 
 - `firmware/main.c`, `app.c`: application and transport integration.
-- `firmware/voice.c`, `clock.c`: waveforms and rational phase timing.
+- `firmware/voice.c`, `clock.c`, `sync.c`: waveforms, rational phase timing and external sync.
 - `firmware/ui.c`, `font.c`: controls, display and original bitmap font.
 - `firmware/board.c`, `gate_bus.c`, `protocol.c`: peripheral and SPI/DAC handling.
 - `firmware/startup.c`, `runtime.c`, `divmod.S`, `stm32f042.ld`: MCU runtime/linker.
@@ -106,6 +111,9 @@ defaults, abbreviations, timing limitations and the zero-output input diagnostic
 - `tests/`: portable UI/engine/clock, native/WASM parity, browser-control and server tests.
 
 The tests do not measure real interrupt timing, analog output accuracy or jitter.
+The user bench-confirmed v0.1 output ratios/waveforms, Stop-to-zero and reset.
+v0.2 external input capture and synchronization still need the
+[documented bench checks](docs/synchronization.md#bench-acceptance--pending-for-v02).
 
 ## License and provenance
 

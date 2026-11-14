@@ -6,9 +6,15 @@
 #include "font.h"
 #include "pnw_board.h"
 void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now) {
-    *ui=(OriginalUi){.bpm=120,.previous=raw,.candidate=raw,.stable=raw,.changed_at=now};
+    *ui=(OriginalUi){.bpm=120,.previous=raw,.candidate=raw,.stable=raw,.changed_at=now,.ppqn_index=6};
     static const uint8_t ratios[8]={5,6,8,4,2,1,5,5};
     for(unsigned i=0;i<8;++i)ui->outputs[i]=(NfConfig){ratios[i],i==6?1:i==7?2:0,50,0,100,0};
+}
+static bool hold_program(OriginalUi *ui) {
+    ui->program_consumed=true;
+    if(ui->editing || ui->selecting) {ui->editing=false;ui->selecting=false;return true;}
+    if(!ui->page) {ui->selecting=true;ui->field=0;return true;}
+    return false;
 }
 bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
     bool dirty=false;
@@ -26,8 +32,14 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
             unsigned maximum=ui->field==0?NF_RATIOS-1:ui->field==1?NF_SHAPES-1:ui->field==2||ui->field==3?99u:100u;
             int value=(int)*values[ui->field]+step;
             if(value>=(int)minimum && value<=(int)maximum) {*values[ui->field]=(uint8_t)value;dirty=true;}
-        } else if(ui->page && ui->selecting) {
-            ui->field=(unsigned)((int)ui->field+step+NF_FIELDS)%NF_FIELDS;dirty=true;
+        } else if(!ui->page && ui->selecting && ui->editing) {
+            if(ui->field==0)ui->external=step>0;
+            else if(ui->field==1) {int value=(int)ui->ppqn_index+step;if(value>=0 && value<(int)NF_PPQN_COUNT)ui->ppqn_index=(uint8_t)value;}
+            else {int value=(int)ui->run_mode+step;if(value>=0 && value<=2)ui->run_mode=(uint8_t)value;}
+            dirty=true;
+        } else if(ui->selecting) {
+            unsigned fields=ui->page?NF_FIELDS:3u;
+            ui->field=(unsigned)((int)ui->field+step+(int)fields)%fields;dirty=true;
         } else if(ui->editing) {
             int bpm=(int)ui->bpm+step;
             if(bpm>=10 && bpm<=300) {ui->bpm=(unsigned)bpm;dirty=true;}
@@ -48,17 +60,16 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
         }
         if(released && !ui->program_consumed) {
             if((uint32_t)(now-ui->program_at)>=500u) {
-                ui->editing=false;ui->selecting=false;ui->program_consumed=true;
+                (void)hold_program(ui);
             } else if(ui->page) {
                 if(!ui->selecting) {ui->selecting=true;ui->field=0;}
                 else ui->editing=!ui->editing;
-            } else ui->editing=!ui->editing;
+            } else if(ui->selecting || !ui->external)ui->editing=!ui->editing;
             dirty=true;
         }
     }
     if(!(ui->stable&4u) && !ui->program_consumed && (uint32_t)(now-ui->program_at)>=500u) {
-        ui->program_consumed=true;
-        if(ui->editing || ui->selecting) {ui->editing=false;ui->selecting=false;dirty=true;}
+        dirty=hold_program(ui)||dirty;
     }
     return dirty;
 }
@@ -79,10 +90,19 @@ static void transport_icon(unsigned x,bool running) {
 void original_ui_render(const OriginalUi *ui) {
     char value[4];pnw_oled_clear();
     if(!ui->page) {
-        transport_icon(0,ui->running);original_text(14,0,"NEWFANGLED 0.1",1);
-        number(ui->bpm,value);original_text(0,10,value,2);original_text(43,15,"BPM",1);
+        transport_icon(0,ui->active);
+        if(ui->selecting) {
+            original_text(14,0,"SYNC",2);original_text(76,0,ui->editing?"EDIT":"SELECT",1);
+            if(ui->field==0) {unsigned x=original_text(0,18,"SRC ",2);original_text(x,18,ui->external?"EXT":"INT",2);}
+            else if(ui->field==1) {unsigned x=original_text(0,18,"PPQN ",2);number(nf_ppqn_values[ui->ppqn_index],value);original_text(x,18,value,2);}
+            else {const char *modes[]={"OFF","GATE","RESET"};unsigned x=original_text(0,18,"RUN ",2);original_text(x,18,modes[ui->run_mode],2);}
+            return;
+        }
+        original_text(14,0,"NEWFANGLED 0.2",1);
+        number(ui->external?ui->external_bpm:ui->bpm,value);original_text(0,10,ui->external && !ui->external_bpm?"---":value,2);original_text(43,15,"BPM",1);
         original_text(83,15,ui->editing?"EDIT":"VIEW",1);
-        original_text(0,25,ui->timing_fault?"TIMING FAULT":ui->editing?"TURN BPM / CLICK DONE":"TURN OUT / CLICK BPM",1);
+        const char *status[]={"TURN OUT / CLICK BPM","EXT WAIT","EXT LOCK","EXT LOST","RUN LOW","EXT ARMED"};
+        original_text(0,25,ui->timing_fault?"TIMING FAULT":ui->sync_status?status[ui->sync_status]:ui->editing?"TURN BPM / CLICK DONE":"TURN OUT / CLICK BPM",1);
     } else {
         /* Two readable rows: output above, parameter name and value below. */
         original_text(0,0,"OUT",2);number(ui->page,value);original_text(40,0,value,2);
@@ -91,7 +111,7 @@ void original_ui_render(const OriginalUi *ui) {
         const char *shapes[]={"GATE","TRI","RISE","FALL","RAND"};
         unsigned field=ui->selecting?ui->field:0;
         original_text(64,0,ui->editing?"EDIT":ui->selecting?"SELECT":"VIEW",1);
-        transport_icon(119,ui->running);
+        transport_icon(119,ui->active);
         if(ui->timing_fault) {original_text(0,21,"TIMING FAULT",1);return;}
         unsigned x=original_text(0,18,labels[field],2);
         if(field==0)original_text(x,18,nf_ratio_names[c->ratio],2);

@@ -15,4 +15,5 @@ void original_clock_tempo(OriginalClock *clock,unsigned bpm);
 void original_clock_running(OriginalClock *clock,bool running);
 void original_clock_reset(OriginalClock *clock);
 void original_clock_tick(OriginalClock *clock);
+void original_clock_advance(OriginalClock *clock,unsigned step);
 #endif

@@ -17,9 +17,10 @@ void original_clock_running(OriginalClock *clock,bool running) {
     if(clock->running==running)return;
     clock->running=running;original_clock_reset(clock);
 }
-void original_clock_tick(OriginalClock *clock) {
+void original_clock_tick(OriginalClock *clock) {original_clock_advance(clock,clock->bpm);}
+void original_clock_advance(OriginalClock *clock,unsigned step) {
     if(!clock->running)return;
-    clock->phase+=clock->bpm;
+    clock->phase+=step;
     if(clock->phase>=ORIGINAL_BEAT_PHASE) {clock->phase-=ORIGINAL_BEAT_PHASE;++clock->beats;}
     clock->gate=clock->phase<ORIGINAL_BEAT_PHASE/2u;
 }

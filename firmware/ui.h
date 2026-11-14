@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "voice.h"
+#include "sync.h"
 typedef struct {
     unsigned bpm,page;
     int encoder;
@@ -14,6 +15,9 @@ typedef struct {
     NfConfig outputs[8];
     bool selecting,program_consumed;
     uint32_t program_at;
+    bool external,active,run_high;
+    uint8_t ppqn_index,run_mode,sync_status;
+    unsigned external_bpm;
 } OriginalUi;
 void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now);
 bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now);

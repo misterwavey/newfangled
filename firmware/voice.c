@@ -8,8 +8,9 @@ const char *const nf_ratio_names[NF_RATIOS]={"/16","/8","/4","/3","/2","X1","X2"
 const char *const nf_shape_names[NF_SHAPES]={"GATE","TRIANGLE","RAMP UP","RAMP DOWN","RANDOM"};
 static uint32_t period(const NfVoice *v) {return 60000u*nf_divisors[v->config.ratio];}
 void nf_voice_reset(NfVoice *v,unsigned channel) {v->phase=0;v->random=0x9e3779b9u*(channel+1u);}
-void nf_voice_tick(NfVoice *v,unsigned bpm) {
-    uint32_t span=period(v);v->phase+=bpm*nf_multipliers[v->config.ratio];
+void nf_voice_tick(NfVoice *v,unsigned bpm) {nf_voice_advance(v,bpm);}
+void nf_voice_advance(NfVoice *v,unsigned step) {
+    uint32_t span=period(v);v->phase+=step*nf_multipliers[v->config.ratio];
     if(v->phase>=span) {
         v->phase-=span;uint32_t x=v->random;x^=x<<13;x^=x>>17;x^=x<<5;v->random=x;
     }

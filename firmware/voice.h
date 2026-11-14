@@ -13,4 +13,5 @@ extern const char *const nf_ratio_names[NF_RATIOS],*const nf_shape_names[NF_SHAP
 void nf_voice_reset(NfVoice *voice,unsigned channel);
 uint16_t nf_voice_value(const NfVoice *voice,bool running,unsigned bpm);
 void nf_voice_tick(NfVoice *voice,unsigned bpm);
+void nf_voice_advance(NfVoice *voice,unsigned step);
 #endif

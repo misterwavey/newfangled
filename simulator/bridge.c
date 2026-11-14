@@ -20,6 +20,7 @@ static void capture_gate(void) {
 }
 static uint8_t framebuffer[512],raw;
 static uint32_t cv[2],run,clock_enabled,clock_bpm,clock_ppqn,clock_phase;
+static uint32_t generated_interval;
 void *memset(void *destination,int value,size_t size) {
     unsigned char *p=destination;while(size--)*p++=(unsigned char)value;return destination;
 }
@@ -34,14 +35,25 @@ void pnw_oled_pixel(unsigned x,unsigned y,bool on) {
 }
 void sim_reset(void) {
     raw=15;now=0;cv[0]=0;cv[1]=2048;run=0;clock_enabled=0;clock_bpm=120;clock_ppqn=24;clock_phase=0;
-    edge_count=0;last_output=0;original_app_init(&app,raw,now);original_ui_render(&ui);
+    generated_interval=0;edge_count=0;last_output=0;original_app_init(&app,raw,now);original_ui_render(&ui);
 }
 void sim_advance(uint32_t milliseconds) {
     for(uint32_t i=0;i<milliseconds;++i) {
         ++now;
-        if(clock_enabled)clock_phase=(clock_phase+clock_bpm*clock_ppqn)%60000u;
-        original_app_tick(&app);capture_gate();
-        if(original_ui_update(&ui,raw,now)) {original_app_sync(&app);capture_gate();original_ui_render(&ui);}
+        if(clock_enabled) {
+            uint32_t prior=clock_phase;clock_phase=(clock_phase+clock_bpm*clock_ppqn)%60000u;
+            if(clock_phase<prior || !generated_interval) {
+                /* Within-tick interpolation gives the generated edge a us
+                   timestamp, while synthesis still advances at 1 kHz. */
+                uint32_t us=now*1000u;
+                if(generated_interval)us-=clock_phase*1000u/(clock_bpm*clock_ppqn);else us=(now-1u)*1000u;
+                original_app_input(&app,NF_INPUT_CLOCK,us);generated_interval=1;
+            }
+        }
+        original_app_tick_at(&app,now*1000u);capture_gate();
+        bool dirty=original_ui_update(&ui,raw,now);
+        if(dirty) {original_app_sync(&app);capture_gate();}
+        dirty=original_app_refresh_ui(&app)||dirty;if(dirty)original_ui_render(&ui);
     }
 }
 void sim_raw(uint32_t value) {raw=(uint8_t)(value&15u);}
@@ -63,8 +75,11 @@ void sim_reset_phase(void) {
 }
 void sim_input(uint32_t index,uint32_t value) {
     if(index<2u)cv[index]=value>4095u?4095u:value;
-    else if(index==2u)run=value!=0;
-    else if(index==3u) {clock_enabled=value!=0;if(!clock_enabled)clock_phase=0;}
+    else if(index==2u) {
+        unsigned high=value!=0;if(high!=run)original_app_input(&app,high?NF_INPUT_RUN_HIGH:NF_INPUT_RUN_LOW,now*1000u);
+        run=high;
+    }
+    else if(index==3u) {clock_enabled=value!=0;if(!clock_enabled) {clock_phase=0;generated_interval=0;}}
     else if(index==4u)clock_bpm=value<10u?10u:value>330u?330u:value;
     else if(index==5u)clock_ppqn=value<1u?1u:value>48u?48u:value;
 }
@@ -75,7 +90,8 @@ uint32_t sim_get(uint32_t index) {
     case 7:return clock_enabled && clock_phase<15000u;
     case 8:return clock_enabled;case 9:return clock_bpm;case 10:return clock_ppqn;
     case 11:return raw;case 12:return app.clock.running;case 13:return app.clock.phase;
-    case 14:return app.clock.beats;case 15:return ui.reset_count;case 16:return edge_count;case 17:return ui.selecting;case 18:return ui.field;default:return 0;
+    case 14:return app.clock.beats;case 15:return ui.reset_count;case 16:return edge_count;case 17:return ui.selecting;case 18:return ui.field;case 19:return ui.external;case 20:return nf_ppqn_values[ui.ppqn_index];
+    case 21:return ui.run_mode;case 22:return ui.sync_status;case 23:return ui.external_bpm;case 24:return app.sync.rejected;case 25:return ui.running;default:return 0;
     }
 }
 uintptr_t sim_framebuffer(void) {return (uintptr_t)framebuffer;}

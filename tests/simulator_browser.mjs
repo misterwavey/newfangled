@@ -57,4 +57,13 @@ assert(sim.state().outputs.every(v=>v>=0 && v<=1023));
 $('phase-reset').click();assert.equal(sim.core.sim_get(15),1);
 $('start').click();assert.equal(sim.state().running,false);assert(sim.state().outputs.every(v=>v===0));
 $('reset').click();assert.equal(sim.state().time,0);assert.equal(sim.state().seed,12345);assert.equal(sim.session().actions.length,0);
+// External waiting state and Run/clock controls use the actual shared UI.
+sim.perform({type:'hold-program'});sim.perform({type:'program'});sim.perform({type:'turn',direction:1});
+sim.perform({type:'program'});sim.perform({type:'hold-program'});assert.equal(sim.state().external,true);
+$('start').click();assert.equal(sim.state().armed,true);assert.equal(sim.state().running,false);assert.equal($('start').textContent,'DISARM');
+sim.perform({type:'input',index:3,value:1});sim.perform({type:'advance',ms:1000});
+assert.equal(sim.state().running,true);assert.equal($('transport-state').textContent,'RUNNING');
+sim.perform({type:'input',index:3,value:0});sim.perform({type:'advance',ms:1200});
+assert.equal(sim.state().running,false);assert.equal($('transport-state').textContent,'CLOCK LOST');
+assert(sim.state().outputs.every(v=>v===0));
 console.log('Offline page: controls, clock/CV inputs, pause/step, seeded replay, framebuffer and invalid-session checks passed.');

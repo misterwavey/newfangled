@@ -15,6 +15,29 @@ static void await_bits(uint32_t address,uint32_t mask,uint32_t value,unsigned st
     for(;;) __asm volatile("wfi");
 }
 
+/* EXTI handlers only capture events; synthesis and SPI stay in SysTick. */
+static struct {uint32_t kind,us;} input_events[16];
+static volatile uint32_t input_head,input_tail,input_overruns;
+uint32_t pnw_micros(void) {return REG(0x40000024u);}
+uint32_t pnw_input_overruns(void) {return input_overruns;}
+static void input_push(uint32_t kind,uint32_t us) {
+    uint32_t next=(input_head+1u)&15u;
+    if(next==input_tail) {++input_overruns;return;}
+    input_events[input_head].kind=kind;input_events[input_head].us=us;
+    __asm volatile("dmb":::"memory");input_head=next;
+}
+bool pnw_input_take(uint32_t *kind,uint32_t *us) {
+    uint32_t saved=pnw_interrupt_lock();bool ready=input_tail!=input_head;
+    if(ready) {*kind=input_events[input_tail].kind;*us=input_events[input_tail].us;input_tail=(input_tail+1u)&15u;}
+    pnw_interrupt_restore(saved);return ready;
+}
+void EXTI4_15_IRQHandler(void) {
+    uint32_t pending=REG(0x40010414u)&((1u<<8)|(1u<<10));
+    uint32_t us=pnw_micros();REG(0x40010414u)=pending;
+    /* Run first when both arrive together, so a coincident gate can arm clock. */
+    if(pending&(1u<<8))input_push(pnw_run_input()?2u:3u,us);
+    if(pending&(1u<<10))input_push(1u,us);
+}
 static uint8_t pixels[512];
 static PnwGateBus gate_bus;
 static uint16_t output_pending[8];
@@ -151,8 +174,8 @@ uint8_t pnw_controls_raw(void) {
        the portable UI. Encoder quadrature levels remain unchanged. */
     return (uint8_t)((((v>>6)&1)|(((v>>7)&1)<<1)|(((v>>5)&1)<<2)|(((v>>4)&1)<<3))^12u);
 }
-bool pnw_clock_input(void) { return (REG(A+0x10)&(1u<<10))!=0; }
-bool pnw_run_input(void) { return (REG(A+0x10)&(1u<<8))!=0; }
+bool pnw_clock_input(void) { return (REG(A+0x10)&(1u<<10))==0; }
+bool pnw_run_input(void) { return (REG(A+0x10)&(1u<<8))==0; }
 void pnw_expander(bool run,bool clock) { pin(A,0,run); pin(A,2,clock); }
 bool pnw_midi_send(uint8_t byte) {
     static bool initialized;
@@ -244,4 +267,18 @@ void pnw_board_init(void) {
     static const uint8_t init[]={0xae,0xa8,31,0xd3,0,0x40,0xda,2,0x20,0,0xa1,0xc8,0x81,0x8f,0xa6,0xdb,0x40,0xa4,0xd5,0x80,0x8d,0x14,0x2e,0xaf};
     for(unsigned i=0;i<sizeof(init);i++) command(init[i]);
     pnw_oled_clear();pnw_oled_flush();
+    REG(RCC+0x1c)|=1u; /* APB1 TIM2, 48 MHz on the configured APB clock. */
+    REG(RCC+0x10)|=1u;REG(RCC+0x10)&=~1u;
+    REG(0x40000028)=47;REG(0x4000002c)=0xffffffffu;REG(0x40000014)=1;REG(0x40000024)=0;REG(0x40000000)=1;
+    REG(RCC+0x18)|=1u; /* SYSCFG clock; EXTI8/10 route to port A. */
+    REG(0x40010010)&=~0x0f0fu;
+    REG(0x40010400)&=~((1u<<8)|(1u<<10));
+    REG(0x40010408)=(REG(0x40010408)&~(1u<<10))|(1u<<8);
+    REG(0x4001040c)|=(1u<<8)|(1u<<10);
+    REG(0x40010414)=(1u<<8)|(1u<<10);
+    /* EXTI priority 0 may preempt synthesis; the event ring is its only output. */
+    *(volatile uint8_t *)(uintptr_t)0xe000e407=0;
+    *(volatile uint8_t *)(uintptr_t)0xe000ed23=0x80;
+    input_push(pnw_run_input()?2u:3u,pnw_micros());
+    REG(0x40010400)|=(1u<<8)|(1u<<10);REG(0xe000e100)=1u<<7;
 }

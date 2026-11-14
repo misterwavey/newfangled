@@ -22,12 +22,13 @@ class SimulatorParity(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='pnw-sim-test-') as directory:
             libfile=Path(directory)/('core.dylib' if sys.platform=='darwin' else 'core.so')
             shared=['-dynamiclib'] if sys.platform=='darwin' else ['-shared','-fPIC']
-            subprocess.run(['cc',*shared,'-O2','-fno-builtin','-Wall','-Wextra','-Werror','-Iinclude','-Ifirmware','firmware/font.c','firmware/ui.c','firmware/clock.c','firmware/app.c','firmware/voice.c','simulator/bridge.c','-o',str(libfile)],cwd=ROOT,check=True)
+            subprocess.run(['cc',*shared,'-O2','-fno-builtin','-Wall','-Wextra','-Werror','-Iinclude','-Ifirmware','firmware/font.c','firmware/ui.c','firmware/clock.c','firmware/app.c','firmware/sync.c','firmware/voice.c','simulator/bridge.c','-o',str(libfile)],cwd=ROOT,check=True)
             core=ctypes.CDLL(str(libfile))
             core.sim_reset.argtypes=[];core.sim_reset.restype=None
             core.sim_framebuffer.argtypes=[];core.sim_framebuffer.restype=ctypes.c_void_p
             for name in ['sim_advance','sim_turn','sim_click','sim_raw']:
                 getattr(core,name).argtypes=[ctypes.c_uint32];getattr(core,name).restype=None
+            core.sim_hold_program.argtypes=[];core.sim_hold_program.restype=None
             core.sim_input.argtypes=[ctypes.c_uint32]*2;core.sim_input.restype=None
             core.sim_output.argtypes=[ctypes.c_uint32];core.sim_output.restype=ctypes.c_uint32
             core.sim_get.argtypes=[ctypes.c_uint32];core.sim_get.restype=ctypes.c_uint32
@@ -35,7 +36,11 @@ class SimulatorParity(unittest.TestCase):
             for name in ['sim_edge_time','sim_edge_level']:
                 getattr(core,name).argtypes=[ctypes.c_uint32];getattr(core,name).restype=ctypes.c_uint32
             rng=random.Random(20261114)
-            actions=[dict(type='click',value=1),dict(type='turn',value=1),dict(type='click',value=0)]
+            actions=[dict(type='hold',value=0),dict(type='click',value=1),dict(type='turn',value=1),
+                     dict(type='click',value=1),dict(type='hold',value=0),dict(type='click',value=0),
+                     dict(type='input',index=3,value=1),dict(type='advance',value=5000),
+                     dict(type='input',index=3,value=0),dict(type='advance',value=500),
+                     dict(type='input',index=3,value=1),dict(type='advance',value=1000)]
             for _ in range(600):
                 kind=rng.choice(['advance','advance','turn','click','input'])
                 action=dict(type=kind,value=rng.randrange(1000) if kind=='advance' else rng.randrange(2))
@@ -45,9 +50,9 @@ class SimulatorParity(unittest.TestCase):
             actions.extend([dict(type='advance',value=60000),dict(type='raw',value=0),dict(type='advance',value=21),dict(type='raw',value=15),dict(type='advance',value=21)])
             core.sim_reset();fixtures=[]
             for action in actions:
-                kind=action['type'];name={'advance':'sim_advance','turn':'sim_turn','click':'sim_click','input':'sim_input','raw':'sim_raw'}[kind]
-                args=[action['index'],action['value']] if kind=='input' else [action['value']]
+                kind=action['type'];name={'advance':'sim_advance','turn':'sim_turn','click':'sim_click','input':'sim_input','raw':'sim_raw','hold':'sim_hold_program'}[kind]
+                args=[] if kind=='hold' else [action['index'],action['value']] if kind=='input' else [action['value']]
                 getattr(core,name)(*args)
-                fixtures.append(dict(action=action,outputs=[core.sim_output(i) for i in range(8)],state=[core.sim_get(i) for i in range(19)],edges=[[core.sim_edge_time(i),core.sim_edge_level(i)] for i in range(max(0,core.sim_edge_count()-2048),core.sim_edge_count())],framebuffer=base64.b64encode(ctypes.string_at(core.sim_framebuffer(),512)).decode()))
+                fixtures.append(dict(action=action,outputs=[core.sim_output(i) for i in range(8)],state=[core.sim_get(i) for i in range(26)],edges=[[core.sim_edge_time(i),core.sim_edge_level(i)] for i in range(max(0,core.sim_edge_count()-2048),core.sim_edge_count())],framebuffer=base64.b64encode(ctypes.string_at(core.sim_framebuffer(),512)).decode()))
             path=Path(directory)/'fixtures.json';path.write_text(json.dumps(fixtures))
             subprocess.run([node,str(ROOT/'tests/simulator_wasm.mjs'),str(wasm),str(path)],check=True)

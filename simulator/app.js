@@ -63,7 +63,7 @@
       }
       ctx.putImageData(image,0,0);
       const time=core.sim_get(0);$('time').textContent=`${String(Math.floor(time/60000)).padStart(2,'0')}:${String(Math.floor(time/1000)%60).padStart(2,'0')}.${String(time%1000).padStart(3,'0')}`;
-      $('start').textContent=core.sim_get(12)?'STOP':'START';
+      $('start').textContent=core.sim_get(25)?(core.sim_get(12)?'STOP':'DISARM'):'START';
       $('play').textContent=playing?'Pause':'Play';$('play').setAttribute('aria-pressed',String(playing));
       $('needle').style.transform=`rotate(${angle}deg)`;
       for(let i=0;i<2;i++) {
@@ -76,7 +76,7 @@
       $('ppqn').value=core.sim_get(10);if(document.activeElement!==$('seed'))$('seed').value=seed;
       $('action-count').textContent=`${actions.length.toLocaleString()} actions`;
       $('inspector').textContent=`PAGE ${core.sim_get(2)} / ${core.sim_get(1)} BPM / ${core.sim_get(3)?'EDIT':'BROWSE'}`;
-      $('transport-state').textContent=core.sim_get(12)?'RUNNING':'STOPPED';
+      $('transport-state').textContent=core.sim_get(12)?'RUNNING':core.sim_get(19)&&core.sim_get(22)===3?'CLOCK LOST':core.sim_get(25)?'ARMED':'STOPPED';
       $('phase').textContent=`${(core.sim_get(13)/600).toFixed(1)}%`;$('beats').textContent=core.sim_get(14);$('edge-count').textContent=core.sim_edge_count();
       const edges=[];for(let i=Math.max(0,core.sim_edge_count()-10);i<core.sim_edge_count();i++)edges.push(`${core.sim_edge_time(i)} ms  code ${core.sim_edge_level(i)}`);
       $('edges').textContent=edges.length?edges.join('   ·   '):'No edges yet. Press module Start.';
@@ -98,14 +98,14 @@
     function reset() {stop();core.sim_reset();seed=12345;angle=0;actions=[];history=[];sample();draw();}
     function act(action) {try {perform(action);draw();}catch(error){stop();notice(error.message,true);}}
     function replay(session) {
-      if(!session || session.format!=='pnw-newfangled-session' || session.version!==1 || session.core!=='newfangled-v0.1-ui2' || !/^[0-9a-f]{64}$/.test(session.coreHash??'') || !Array.isArray(session.actions) || session.actions.length>100000)throw Error('Not a supported Newfangled session.');
+      if(!session || session.format!=='pnw-newfangled-session' || session.version!==1 || session.core!=='newfangled-v0.2' || !/^[0-9a-f]{64}$/.test(session.coreHash??'') || !Array.isArray(session.actions) || session.actions.length>100000)throw Error('Not a supported Newfangled session.');
       let duration=0;
       for(const action of session.actions) {validate(action);duration+=action.type==='advance'?action.ms:action.type==='turn'?4:action.type==='phase-reset'?75:action.type==='hold-program'?575:['program','start'].includes(action.type)?50:0;}
       if(duration>3600000)throw Error('Replay is limited to one hour of virtual time.');
       reset();for(const action of session.actions)perform(action);draw();notice(`Replayed ${actions.length.toLocaleString()} actions. Simulator paused.${session.coreHash!==CORE_HASH?' Different core build: results may differ.':''}`);
     }
     function exportSession() {
-      const session={format:'pnw-newfangled-session',version:1,core:'newfangled-v0.1-ui2',coreHash:CORE_HASH,actions};
+      const session={format:'pnw-newfangled-session',version:1,core:'newfangled-v0.2',coreHash:CORE_HASH,actions};
       const url=URL.createObjectURL(new Blob([JSON.stringify(session,null,2)],{type:'application/json'}));
       const link=document.createElement('a');link.href=url;link.download='newfangled-session.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
       notice('Session exported. Input actions and virtual time can be replayed exactly.');
@@ -143,8 +143,8 @@
     }
     reset();$('status').textContent='Shared C core · offline';document.body.dataset.ready='true';
     window.pnwSimulator={core,perform:action=>{perform(action);draw();},replay,reset,
-      session:()=>({format:'pnw-newfangled-session',version:1,core:'newfangled-v0.1-ui2',coreHash:CORE_HASH,actions:actions.map(a=>({...a}))}),
-      state:()=>({time:core.sim_get(0),bpm:core.sim_get(1),page:core.sim_get(2),editing:!!core.sim_get(3),selecting:!!core.sim_get(17),field:core.sim_get(18),running:!!core.sim_get(12),phase:core.sim_get(13),beats:core.sim_get(14),seed,outputs:Array.from({length:8},(_,i)=>core.sim_output(i))})};
+      session:()=>({format:'pnw-newfangled-session',version:1,core:'newfangled-v0.2',coreHash:CORE_HASH,actions:actions.map(a=>({...a}))}),
+      state:()=>({time:core.sim_get(0),bpm:core.sim_get(1),external:!!core.sim_get(19),ppqn:core.sim_get(20),runMode:core.sim_get(21),armed:!!core.sim_get(25),syncStatus:core.sim_get(22),externalBpm:core.sim_get(23),page:core.sim_get(2),editing:!!core.sim_get(3),selecting:!!core.sim_get(17),field:core.sim_get(18),running:!!core.sim_get(12),phase:core.sim_get(13),beats:core.sim_get(14),seed,outputs:Array.from({length:8},(_,i)=>core.sim_output(i))})};
     requestAnimationFrame(frame);
   } catch(error) {$('status').textContent='Unable to load simulator';notice(error.message,true);document.body.dataset.error=error.message;}
 })();
