@@ -15,7 +15,7 @@ function apply(action) {
 core.sim_reset();
 for(const [index,fixture] of scenarios.entries()) {
   apply(fixture.action);
-  assert.deepEqual(Array.from({length:44},(_,i)=>core.sim_get(i)>>>0),fixture.state,`state ${index}`);
+  assert.deepEqual(Array.from({length:47},(_,i)=>core.sim_get(i)>>>0),fixture.state,`state ${index}`);
   assert.deepEqual(Array.from({length:8},(_,i)=>Array.from({length:6},(_,k)=>core.sim_pitch(i,k)>>>0)),fixture.pitch,`pitch ${index}`);
   assert.deepEqual(Array.from({length:8},(_,i)=>Array.from({length:4},(_,k)=>core.sim_groove(i,k)>>>0)),fixture.grooves,`grooves ${index}`);
   assert.deepEqual(Array.from({length:8},(_,i)=>Array.from({length:8},(_,k)=>core.sim_rhythm(i,k)>>>0)),fixture.rhythms,`rhythms ${index}`);
@@ -88,7 +88,7 @@ core.sim_hold_program();core.sim_click(0);
 core.sim_input(0,4095);core.sim_advance(250);assert.equal(core.sim_effective(0,4),100);
 core.sim_input(0,0);core.sim_advance(250);assert.equal(core.sim_effective(0,4),0);
 // Raw/normalized monitor, then inverted 0 V/+5 V endpoint capture.
-core.sim_click(1);for(let i=0;i<13;i++)core.sim_turn(0);core.sim_click(1);assert.equal(core.sim_get(27),1);
+core.sim_click(1);for(let i=0;i<14;i++)core.sim_turn(0);core.sim_click(1);assert.equal(core.sim_get(27),1);
 core.sim_input(0,4000);core.sim_advance(200);assert.equal(core.sim_get(31),32007);
 core.sim_hold_program();core.sim_turn(0);assert.equal(core.sim_get(2),0);globalSettings();
 for(let i=0;i<5;i++)core.sim_turn(1);core.sim_click(1); // C1 ZERO=4000

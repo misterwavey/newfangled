@@ -28,9 +28,12 @@ typedef struct {
     uint16_t cv_raw[2];int32_t cv_normalized[2];
     uint8_t cv_valid,cv_raw_valid,cv_field,cv_target,cv_input;
     bool cv_menu,cv_monitor,cv_swapped;
-    bool preset_menu,clear_confirm,clear_yes;
+    bool preset_menu,clear_confirm,clear_yes,copy_yes;
+    uint8_t copy_mode,copy_target;
     uint8_t preset_slot,preset_field,preset_command,preset_status,preset_mask;
 } OriginalUi;
+/* Copy base settings only; invalid/self destinations leave state intact. */
+bool original_ui_copy_output(OriginalUi *ui,unsigned source,unsigned destination);
 /* Reset one output to silent defaults; transport/global state and slots stay intact. */
 bool original_ui_clear_output(OriginalUi *ui,unsigned output);
 void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now);

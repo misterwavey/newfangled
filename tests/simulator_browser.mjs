@@ -155,7 +155,7 @@ assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[0,0,1,0]
 console.log('Pitch/slew controls, target notes, glide, Stop, preset replay and v0.6 migration passed.');
 // Clear OUT1 while running; cancelling does nothing and saved slots stay intact.
 const beforeClearLibrary=plain(sim.exportPresets());$('start').click();$('right').click();$('encoder').click();$('left').click();
-assert.equal(sim.core.sim_get(18),19);$('encoder').click();assert.equal(sim.core.sim_get(42),1);assert.equal(sim.core.sim_get(43),0);
+assert.equal(sim.core.sim_get(18),20);$('encoder').click();assert.equal(sim.core.sim_get(42),1);assert.equal(sim.core.sim_get(43),0);
 $('encoder').click();assert.equal(sim.core.sim_get(42),0);assert.equal(sim.core.sim_effective(0,4),100);
 $('encoder').click();$('right').click();$('back').click();assert.equal(sim.core.sim_get(42),0);assert.equal(sim.core.sim_effective(0,4),100);
 $('encoder').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();
@@ -171,3 +171,23 @@ $('reset').click();assert.equal(sim.core.sim_effective(0,4),100);$('right').clic
 $('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
 $('reset').click();assert.equal(sim.core.sim_output(0),0);assert.equal(sim.core.sim_effective(0,4),0);
 console.log('Output clear: confirmation, cancel/Back, running silence, CV isolation, unchanged slots and explicit Save passed.');
+// Full settings copy with target confirmation and explicit persistence.
+const copyLibrary=plain(sim.exportPresets()),copyPatch=copyLibrary.slots.find(s=>s.slot===copyLibrary.boot_slot).patch;
+Object.assign(copyPatch.outputs[0],{ratio:'X3',shape:'RANDOM',width:27,phase:12,level:83,offset:5,rhythm:{steps:13,hits:9,rotate:3,probability:75,loop:true},groove:{swing:33,ratchet:4},pitch:{scale:'MINOR',root:'D#',octaves:3,slew_ms:100}});
+for(const field of ['ratio','shape','width','phase','level','offset'])copyPatch.outputs[0].cv[field]={source:'CV2',depth:-73,bias:21};
+copyPatch.outputs[1].level=17;sim.importPresets(copyLibrary);
+const libraryBeforeCopy=plain(sim.exportPresets());$('start').click();$('right').click();$('encoder').click();$('left').click();$('left').click();assert.equal(sim.core.sim_get(18),19);
+$('encoder').click();assert.equal(sim.core.sim_get(44),1);assert.equal(sim.core.sim_get(45),1);$('encoder').click();assert.equal(sim.core.sim_get(44),2);assert.equal(sim.core.sim_get(46),0);
+$('encoder').click();assert.equal(sim.core.sim_get(44),0);assert.equal(sim.core.sim_effective(1,4),17);
+$('encoder').click();$('back').click();assert.equal(sim.core.sim_get(44),0);assert.equal(sim.state().selecting,false);
+$('encoder').click();$('left').click();$('left').click();$('encoder').click();$('encoder').click();$('right').click();$('encoder').click();
+assert.equal(sim.core.sim_get(44),0);assert.equal(sim.state().page,1);assert.equal(sim.state().selecting,false);assert.equal(sim.state().running,true);
+for(let f=0;f<6;f++)for(let k=0;k<3;k++)assert.equal(sim.core.sim_cv_route(1,f,k)|0,sim.core.sim_cv_route(0,f,k)|0);
+assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(1,i)),[13,9,3,75,1]);assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(1,i)),[3,3,3,100]);assert.equal(sim.core.sim_groove(1,0),33);
+assert.deepEqual(plain(sim.exportPresets()),libraryBeforeCopy);
+const copySession=plain(sim.session()),copiedState=plain(sim.state());sim.replay(copySession);assert.deepEqual(plain(sim.state()),copiedState);
+$('start').click();$('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
+$('reset').click();const savedCopy=plain(sim.exportPresets()).slots.find(s=>s.slot===copyLibrary.boot_slot).patch;
+assert.deepEqual(savedCopy.outputs[1],savedCopy.outputs[0]);assert.deepEqual(savedCopy.outputs[0],copyPatch.outputs[0]);
+for(let i=2;i<8;i++)assert.deepEqual(savedCopy.outputs[i],copyPatch.outputs[i]);
+console.log('Output copy: target/confirmation, cancel, full settings, source preservation, replay and explicit Save passed.');

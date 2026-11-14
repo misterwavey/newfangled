@@ -1,6 +1,6 @@
 # Pam’s Newfangled Workout
 
-Independent v0.8 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
+Independent v0.9 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
 (STM32F042K6T6). Eight outputs with clock ratios, gate/triangle/ramps/random,
 width, phase, level and offset, external clock/Run inputs, per-parameter CV routing, Euclidean rhythms, probability, repeatable random
 patterns, swing, gate ratchets, random pitch quantization/slew and eight
@@ -99,6 +99,9 @@ normal Newfangled application updates preserve them. See [presets and JSON backu
 - Output parameters include CV SETUP/CV MON and STEPS, HITS, ROT, PROB, LOOP, SWING, RATCH, SLW, SCL, ROOT and OCTS;
   see [CV controls](docs/cv.md), [rhythms/random patterns](docs/rhythms.md),
   [swing/ratchets](docs/groove.md) and [random pitch/slew](docs/pitch.md).
+- To copy an output: click from its VIEW screen, turn left twice to COPY TO,
+  click, choose a destination, click, choose YES and click. Only the destination
+  restarts; SAVE to retain the copied settings. See [copy output](docs/firmware.md#copy-output--v09).
 - To empty one output: from its VIEW screen, click, turn left to CLEAR OUT, click,
   choose YES and click. This silences/resets only that output; SAVE to retain it.
   See [clear one output](docs/firmware.md#clear-one-output--v08).

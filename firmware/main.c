@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Eight-output v0.8 application. The interrupt owns clock advancement; the
+ * Eight-output v0.9 application. The interrupt owns clock advancement; the
  * foreground owns UI/rendering. No EEPROM operations; explicit stopped-only presets use reserved internal flash. External clock/Run edges are captured by EXTI.
  */
 #include "pnw_board.h"

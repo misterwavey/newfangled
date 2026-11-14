@@ -1,4 +1,4 @@
-# Pam’s Newfangled Workout v0.8
+# Pam’s Newfangled Workout v0.9
 
 Eight independently configured unipolar outputs on ALM017 Rev 62. Boots stopped;
 Stop parks every output at zero. This is an early, independently authored application
@@ -137,7 +137,7 @@ ordering, glide lifecycle, nominal tuning limits and bench checks.
 ## Clear one output — v0.8
 
 From an OUT's VIEW screen, click to select RATIO, then turn one step left to
-**CLEAR OUT** (also the last item after OCTS). Click to open **CLEAR? NO**, turn
+**CLEAR OUT** (the last item, following COPY TO after OCTS). Click to open **CLEAR? NO**, turn
 right to **YES**, and click to clear. Choosing NO leaves the output unchanged;
 holding the encoder cancels and returns directly to VIEW. Confirmation always
 starts at NO. In the simulator, Back/Escape performs the hold.
@@ -158,4 +158,37 @@ Native tests cover cancellation, confirmation, each of eight output positions,
 clearing while running, independent phase/random state, zero output under CV and
 re-enabling an already-cleared output. Browser tests cover the real gestures,
 session replay and explicit Save/power-cycle behavior. Physical v0.8 clearing
+has not yet been bench-tested.
+
+## Copy output — v0.9
+
+From the **source** OUT's VIEW screen, click to select RATIO, turn left twice to
+**COPY TO**, then click. Turn to select **TO OUT1–OUT8**, excluding the source
+itself. Click to open **COPY? NO**, turn right to **YES**, then click to overwrite
+the selected destination. The confirmation screen shows the destination in its
+small second line while the large OUT number remains the source. NO cancels;
+holding the encoder cancels from either stage and returns to VIEW. Simulator
+Back/Escape performs the hold. Every confirmation starts at NO.
+
+Copied settings include ratio, waveform, width, phase, level/offset, all six CV
+routes, Euclidean steps/hits/rotation, probability/loop, swing/ratchets and
+pitch/slew. These are the base settings and assignments, not a frozen snapshot
+of CV-modulated values. Global calibration, tempo, source, PPQN, Run mode and
+transport are unchanged, as are the source and six other outputs.
+
+Copy works during playback and restarts only the destination's phase, rhythm and
+slew. Even copying identical settings restarts it. The destination retains its own
+per-output random seed: COPY TO copies configuration, not the source's current
+phase, random-voltage sequence or sounding pitch. For random outputs, identical
+settings can therefore produce different notes/probability decisions. Copying an
+empty output silences the destination and removes its previous CV routes.
+
+Copy returns to the source's VIEW screen. It is an unsaved patch edit: SAVE if
+you want it retained after power cycling. Preset slots and format are unchanged
+until an explicit Save; schema/JSON version 4 still applies.
+
+Native tests cover destination selection, self-exclusion, NO/YES/hold, all 56
+ordered pairs, every configuration field and route, running source/other-output
+isolation, repeated copies and copying an empty output. Browser tests cover the
+complete UI, session replay and Save/power-cycle behavior. Physical v0.9 copying
 has not yet been bench-tested.

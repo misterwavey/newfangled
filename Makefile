@@ -90,3 +90,10 @@ build/test-clear: tests/test_clear.c tests/oled_stub.c firmware/voice.c firmware
 test-clear: build/test-clear
 	./build/test-clear
 test-firmware: test-clear
+
+build/test-copy: tests/test_copy.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/ui.h | build
+	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_copy.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
+.PHONY: test-copy
+test-copy: build/test-copy
+	./build/test-copy
+test-firmware: test-copy

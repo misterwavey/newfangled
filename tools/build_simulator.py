@@ -33,7 +33,7 @@ def main():
     subprocess.run([*command,'--no-entry','--initial-memory=131072','--max-memory=131072',*['--export='+name for name in EXPORTS],'-o',str(out/'simulator.wasm'),*objects],check=True)
     wasm=(out/'simulator.wasm').read_bytes()
     inputs=SOURCES+['firmware/ui.h','firmware/clock.h','firmware/app.h','firmware/settings.h','firmware/store.h','firmware/preset_format.h','firmware/cv.h','firmware/sync.h','firmware/voice.h','firmware/font.h','include/pnw_board.h','simulator/index.html','simulator/style.css','simulator/app.js','simulator/presets.js']
-    report=dict(application='Pam’s Newfangled Workout simulator',engine='v0.8: per-output clear',wasm_bytes=len(wasm),wasm_sha256=hashlib.sha256(wasm).hexdigest(),
+    report=dict(application='Pam’s Newfangled Workout simulator',engine='v0.9: copy output settings',wasm_bytes=len(wasm),wasm_sha256=hashlib.sha256(wasm).hexdigest(),
                 inputs={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in inputs},hardware_emulation=False,stock_assets_used=False)
     (out/'build.json').write_text(json.dumps(report,indent=2)+'\n')
     html=(ROOT/'simulator/index.html').read_text().replace('/* INLINE_STYLE */',(ROOT/'simulator/style.css').read_text())
