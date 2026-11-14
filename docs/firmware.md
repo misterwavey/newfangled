@@ -84,8 +84,10 @@ and 250.8 ms high time at 120 BPM on the user's scope; probe scaling was unresol
 This establishes neither calibrated tempo accuracy nor a jitter bound. Start/PB4
 was measured LOW released/HIGH pressed; the driver normalizes button inputs.
 The owner bench-confirmed v0.1 ratios and waveforms on all eight outputs,
-Stop-to-zero and phase reset. v0.2's external inputs still require the
-[synchronization bench checks](synchronization.md#bench-acceptance--pending-for-v02).
+Stop-to-zero and phase reset. v0.2 external acquisition at 1 PPQN, clock/output
+rising-edge alignment, loss/reacquisition, Run GATE and Run RESET are also confirmed.
+See the [validation scope](validation.json) and
+[remaining checks](synchronization.md#bench-acceptance-and-confirmed-results).
 Calibrated timing/jitter measurements remain pending.
 
 ## Physical input troubleshooting

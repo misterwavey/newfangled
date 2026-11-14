@@ -112,8 +112,11 @@ defaults, abbreviations, timing limitations and the zero-output input diagnostic
 
 The tests do not measure real interrupt timing, analog output accuracy or jitter.
 The user bench-confirmed v0.1 output ratios/waveforms, Stop-to-zero and reset.
-v0.2 external input capture and synchronization still need the
-[documented bench checks](docs/synchronization.md#bench-acceptance--pending-for-v02).
+For v0.2 the owner also confirmed external clock acquisition at 1 PPQN,
+source/OUT1 rising-edge alignment, clock loss/reacquisition, Run GATE and Run RESET.
+See the [validation record](docs/validation.json) and
+[remaining bench checks](docs/synchronization.md#bench-acceptance-and-confirmed-results).
+Other PPQN settings have software coverage; calibrated hardware timing remains unmeasured.
 
 ## License and provenance
 

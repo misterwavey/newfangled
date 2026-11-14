@@ -1,0 +1,19 @@
+{
+  "version": "0.2",
+  "date": "2026-11-14",
+  "pcb_revision": 62,
+  "image_sha256": "b39a8c38b2ed70b43c19b1ac3f89dc644eb46bd34d6a06f337d03da7bde4b1e7",
+  "method": "Owner-reported bench checks; source/OUT1 rising-edge alignment observed on a two-channel scope.",
+  "confirmed": [
+    "External clock acquisition at 1 PPQN",
+    "Source and OUT1 rising edges align",
+    "Clock disconnect stops outputs; reconnect reacquires",
+    "Run GATE operation",
+    "Run RESET operation"
+  ],
+  "not_confirmed": [
+    "Hardware behavior at PPQN settings other than 1",
+    "Calibrated timing accuracy or jitter",
+    "Exhaustive tempos, pulse widths and input conditions"
+  ]
+}

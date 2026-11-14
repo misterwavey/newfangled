@@ -90,7 +90,17 @@ CV assignment remains unimplemented. The simulator does not model ISR latency or
 analog circuitry. v0.1 action sessions are rejected because Home-hold navigation
 has changed.
 
-## Bench acceptance — pending for v0.2
+## Bench acceptance and confirmed results
+
+On 2026-11-14 the owner confirmed external lock at **1 PPQN**, source and OUT1
+rising-edge alignment on the scope, unplug/reconnect behavior, Run GATE, and
+Run RESET. An initial apparent inversion was resolved by comparing rising edges;
+the source and output had different pulse widths. The tested image hash is in
+[validation.json](validation.json). Other PPQN settings have software test coverage
+but are not recorded as physically validated. Calibrated timing/jitter and an
+exhaustive input/tempo matrix remain pending.
+
+The following procedure documents the functional checks and further measurements:
 
 Keep the known-good v0.1 image available. Build/flash from this standalone repo;
 USB only during flashing, then disconnect USB and apply normal Eurorack power.

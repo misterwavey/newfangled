@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2 — development, external input bench validation pending
+## v0.2 — core external-input behavior bench-confirmed
 
 - Internal/external clock source and eight PPQN choices from 1 to 48.
 - Home-hold synchronization settings; retains the user's internal BPM.
@@ -11,7 +11,11 @@
 - Matching browser clock/Run inputs, armed-state indication and input diagnostics.
 - Fractional-tempo, wraparound, loss/reacquisition, Run/reset, UI and native/WASM tests.
 
-No v0.2 release tag or hardware-validation claim yet. No EEPROM operations added.
+Owner bench-confirmed external acquisition at 1 PPQN, source/OUT1 rising-edge
+alignment, clock-loss stopping/reacquisition, Run GATE, and Run RESET. The tested
+image hash and scope are recorded in `docs/validation.json`. Other PPQN settings
+have software test coverage; physical checks and calibrated jitter remain pending.
+No EEPROM operations added.
 
 ## v0.1
 
