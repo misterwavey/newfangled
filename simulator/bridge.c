@@ -147,3 +147,8 @@ uint32_t sim_rhythm(uint32_t channel,uint32_t item) {
     unsigned values[]={r.steps,r.hits,r.rotate,r.probability,r.loop,app.voices[channel].index,app.voices[channel].allowed,app.voices[channel].mask};
     return item<8?values[item]:0;
 }
+
+uint32_t sim_groove(uint32_t channel,uint32_t item) {
+    if(channel>=8)return 0;
+    return item==0?ui.grooves[channel].swing:item==1?ui.grooves[channel].ratchet:item==2?nf_voice_ratchets(&app.voices[channel],app.step?app.step:app.clock.bpm):item==3?app.voices[channel].swing_odd:0;
+}

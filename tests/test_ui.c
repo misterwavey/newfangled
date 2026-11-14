@@ -122,7 +122,7 @@ int main(void) {
     now+=30;(void)original_ui_update(&ui,11,now);(void)original_ui_update(&ui,11,now+20);
     (void)original_ui_update(&ui,11,now+520);now+=550;(void)original_ui_update(&ui,15,now);(void)original_ui_update(&ui,15,now+20);
     assert(!ui.cv_menu && !ui.selecting && !ui.editing && ui.page==1);
-    click(&ui,4,&now);for(unsigned i=0;i<6;++i)detent(&ui,-1);click(&ui,4,&now);assert(ui.cv_monitor);
+    click(&ui,4,&now);for(unsigned i=0;i<8;++i)detent(&ui,-1);click(&ui,4,&now);assert(ui.cv_monitor);
     ui.cv_raw_valid=3;ui.cv_valid=3;ui.cv_raw[0]=4095;ui.cv_normalized[0]=NF_CV_Q;original_ui_render(&ui);
     detent(&ui,1);assert(ui.cv_input==1);original_ui_render(&ui);
     original_ui_init(&ui,15,0);now=0;ui.selecting=true;ui.field=5;ui.cv_raw_valid=3;ui.cv_raw[0]=4000;
@@ -138,6 +138,8 @@ int main(void) {
     ui.field=8;click(&ui,4,&now);for(unsigned i=0;i<40;++i)detent(&ui,-1);assert(ui.rhythms[0].steps==1 && ui.rhythms[0].hits==1 && ui.rhythms[0].rotate==0);click(&ui,4,&now);
     ui.field=11;click(&ui,4,&now);for(unsigned i=0;i<105;++i)detent(&ui,-1);assert(!ui.rhythms[0].probability);original_ui_render(&ui);click(&ui,4,&now);
     ui.field=12;click(&ui,4,&now);detent(&ui,1);assert(ui.rhythms[0].loop);original_ui_render(&ui);
+    click(&ui,4,&now);ui.field=13;click(&ui,4,&now);for(unsigned i=0;i<60;++i)detent(&ui,1);assert(ui.grooves[0].swing==50);original_ui_render(&ui);click(&ui,4,&now);
+    ui.field=14;click(&ui,4,&now);for(unsigned i=0;i<20;++i)detent(&ui,1);assert(ui.grooves[0].ratchet==8);for(unsigned i=0;i<20;++i)detent(&ui,-1);assert(ui.grooves[0].ratchet==1);original_ui_render(&ui);
     pnw_oled_clear();assert(original_text(127,31,"W",3)>127);assert(pixels<=1);
     unsigned count=pixels;assert(original_text(UINT_MAX,0,"A",1)==UINT_MAX);assert(pixels==count);
     original_text(0,0,"A",0);assert(pixels==count);

@@ -21,15 +21,15 @@
       const slots=[];
       for(let slot=0;slot<8;slot++)if(core.sim_get(39)&(1<<slot)) {
         if(core.sim_preset_read(slot)!==0)throw Error('Preset read failed.');
-        slots.push({slot:slot+1,patch:PresetJson.decode(new Uint8Array(core.memory.buffer,core.sim_settings_buffer(),232))});
+        slots.push({slot:slot+1,patch:PresetJson.decode(new Uint8Array(core.memory.buffer,core.sim_settings_buffer(),212))});
       }
-      return {format:'newfangled-presets',version:2,boot_slot:slots.length?core.sim_get(40)+1:null,slots};
+      return {format:'newfangled-presets',version:3,boot_slot:slots.length?core.sim_get(40)+1:null,slots};
     }
     function importPresets(library) {
       const slots=PresetJson.validate(library);
       if(core.sim_get(25)||core.sim_get(12))throw Error('Stop/disarm module playback before importing presets.');
       for(const slot of slots) {
-        new Uint8Array(core.memory.buffer,core.sim_settings_buffer(),232).set(slot.bytes);
+        new Uint8Array(core.memory.buffer,core.sim_settings_buffer(),212).set(slot.bytes);
         if(core.sim_preset_import(slot.slot-1)!==0)throw Error('Preset import failed.');
       }
     }
@@ -111,7 +111,7 @@
       contexts.forEach(({canvas,label,rhythm},channel)=>{
         const steps=core.sim_rhythm(channel,0),hits=core.sim_rhythm(channel,1),prob=core.sim_rhythm(channel,3),mask=core.sim_rhythm(channel,7)>>>0;
         const pattern=Array.from({length:steps},(_,i)=>(mask>>>i)&1?'●':'·').join('');
-        rhythm.textContent=`${hits}/${steps} ${pattern} · step ${core.sim_rhythm(channel,5)+1} · ${prob}%${core.sim_rhythm(channel,4)?' LOOP':''}`;
+        rhythm.textContent=`${hits}/${steps} ${pattern} · step ${core.sim_rhythm(channel,5)+1} · ${prob}%${core.sim_rhythm(channel,4)?' LOOP':''} · swing ${core.sim_groove(channel,0)}% · ratchet ${core.sim_groove(channel,2)}/${core.sim_groove(channel,1)}`;
         const g=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
         g.clearRect(0,0,w,h);g.strokeStyle='#29373b';g.lineWidth=1;
         for(const y of [8,h/2,h-8]) {g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();}
@@ -129,14 +129,14 @@
     function reset(library=exportPresets()) {PresetJson.validate(library);stop();core.sim_reset();importPresets(library);core.sim_reboot();initialPresets=exportPresets();storageSequence=-1;persist();seed=12345;angle=0;actions=[];history=[];sample();draw();}
     function act(action) {try {perform(action);draw();}catch(error){stop();notice(error.message,true);}}
     function replay(session) {
-      if(!session || session.format!=='pnw-newfangled-session' || session.version!==1 || session.core!=='newfangled-v0.5' || !/^[0-9a-f]{64}$/.test(session.coreHash??'') || !Array.isArray(session.actions) || session.actions.length>100000)throw Error('Not a supported Newfangled session.');
+      if(!session || session.format!=='pnw-newfangled-session' || session.version!==1 || session.core!=='newfangled-v0.6' || !/^[0-9a-f]{64}$/.test(session.coreHash??'') || !Array.isArray(session.actions) || session.actions.length>100000)throw Error('Not a supported Newfangled session.');
       let duration=0;
       for(const action of session.actions) {validate(action);duration+=action.type==='advance'?action.ms:action.type==='turn'?4:action.type==='phase-reset'?75:action.type==='hold-program'?575:['program','start'].includes(action.type)?50:0;}
       if(duration>3600000)throw Error('Replay is limited to one hour of virtual time.');
       PresetJson.validate(session.presets);reset(session.presets);for(const action of session.actions)perform(action);draw();notice(`Replayed ${actions.length.toLocaleString()} actions. Simulator paused.${session.coreHash!==CORE_HASH?' Different core build: results may differ.':''}`);
     }
     function exportSession() {
-      const session={format:'pnw-newfangled-session',version:1,core:'newfangled-v0.5',coreHash:CORE_HASH,presets:initialPresets,actions};
+      const session={format:'pnw-newfangled-session',version:1,core:'newfangled-v0.6',coreHash:CORE_HASH,presets:initialPresets,actions};
       const url=URL.createObjectURL(new Blob([JSON.stringify(session,null,2)],{type:'application/json'}));
       const link=document.createElement('a');link.href=url;link.download='newfangled-session.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
       notice('Session exported. Input actions and virtual time can be replayed exactly.');
@@ -185,7 +185,7 @@
     try {const stored=localStorage.getItem(STORAGE_KEY);if(stored)importPresets(JSON.parse(stored));}catch(error){notice('Could not restore browser presets. Import a JSON backup if needed.',true);}
     reset();$('status').textContent='Shared C core · offline';document.body.dataset.ready='true';
     window.pnwSimulator={core,exportPresets,importPresets:library=>{importPresets(library);reset();},perform:action=>{perform(action);draw();},replay,reset,
-      session:()=>({format:'pnw-newfangled-session',version:1,core:'newfangled-v0.5',coreHash:CORE_HASH,presets:initialPresets,actions:actions.map(a=>({...a}))}),
+      session:()=>({format:'pnw-newfangled-session',version:1,core:'newfangled-v0.6',coreHash:CORE_HASH,presets:initialPresets,actions:actions.map(a=>({...a}))}),
       state:()=>({time:core.sim_get(0),bpm:core.sim_get(1),external:!!core.sim_get(19),ppqn:core.sim_get(20),runMode:core.sim_get(21),armed:!!core.sim_get(25),syncStatus:core.sim_get(22),externalBpm:core.sim_get(23),page:core.sim_get(2),editing:!!core.sim_get(3),selecting:!!core.sim_get(17),field:core.sim_get(18),cvMenu:!!core.sim_get(26),cvMonitor:!!core.sim_get(27),cvField:core.sim_get(28),cvTarget:core.sim_get(29),running:!!core.sim_get(12),phase:core.sim_get(13),beats:core.sim_get(14),seed,outputs:Array.from({length:8},(_,i)=>core.sim_output(i))})};
     requestAnimationFrame(frame);
   } catch(error) {$('status').textContent='Unable to load simulator';notice(error.message,true);document.body.dataset.error=error.message;}

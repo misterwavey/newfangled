@@ -24,8 +24,8 @@ static bool record_valid(NfStore *s,NfSettings *settings) {
     uint8_t *p=s->buffer;
     if(!magic(p,"NFP1") || u16(p+254)!=NF_RECORD_COMMIT || u32(p+248)!=nf_store_crc32(p,248))return false;
     unsigned schema=u16(p+4),length=u16(p+6);
-    if(schema!=1 && schema!=NF_RECORD_SCHEMA) {s->future=true;return false;}
-    if((schema==1?length!=NF_LEGACY_SETTINGS_BYTES:length!=NF_SETTINGS_BYTES) || p[8]>=NF_PRESET_SLOTS)return false;
+    if(schema!=1 && schema!=2 && schema!=NF_RECORD_SCHEMA) {s->future=true;return false;}
+    if((schema==1?length!=NF_LEGACY_SETTINGS_BYTES:schema==2?length!=NF_V5_SETTINGS_BYTES:length!=NF_SETTINGS_BYTES) || p[8]>=NF_PRESET_SLOTS)return false;
     return nf_settings_decode_size(settings,p+16,length);
 }
 static int bank_valid(NfStore *s,unsigned bank,uint32_t *generation) {

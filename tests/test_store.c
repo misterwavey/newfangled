@@ -13,7 +13,7 @@ static NfStoreIo io={0,read_media,erase_media,program_media};
 static void blank(void) {memset(media,255,sizeof media);budget=-1;writes=erases=0;}
 static NfSettings settings(unsigned bpm) {
     OriginalUi u={.bpm=bpm,.ppqn_index=6,.calibration={{83,3900},{2100,127}},.cv_swapped=true};
-    for(unsigned i=0;i<8;++i){u.outputs[i]=(NfConfig){i,4,1,99,100,100};u.rhythms[i]=(NfRhythm){32,(uint8_t)(i+1),(uint8_t)i,73,1};for(unsigned f=0;f<NF_FIELDS;++f)u.routes[i][f]=(NfCvRoute){2,-100,100};}
+    for(unsigned i=0;i<8;++i){u.outputs[i]=(NfConfig){i,4,1,99,100,100};u.rhythms[i]=(NfRhythm){32,(uint8_t)(i+1),(uint8_t)i,73,1};u.grooves[i]=(NfGroove){(uint8_t)(i*7),(uint8_t)(i+1)};for(unsigned f=0;f<NF_FIELDS;++f)u.routes[i][f]=(NfCvRoute){2,-100,100};}
     NfSettings s;nf_settings_capture(&u,&s);return s;
 }
 static void codec(void) {
@@ -21,8 +21,12 @@ static void codec(void) {
     NfSettings s=settings(173),loaded;uint8_t bytes[NF_SETTINGS_BYTES],again[NF_SETTINGS_BYTES];
     assert(nf_settings_encode(&s,bytes));assert(nf_settings_decode(&loaded,bytes));assert(nf_settings_encode(&loaded,again));assert(!memcmp(bytes,again,sizeof bytes));
     assert(loaded.routes[7][5].depth==-100 && loaded.calibration[1].positive==127);
+    assert(loaded.grooves[7].swing==49 && loaded.grooves[7].ratchet==8);
     assert(loaded.rhythms[7].steps==32 && loaded.rhythms[7].hits==8 && loaded.rhythms[7].rotate==7 && loaded.rhythms[7].probability==73 && loaded.rhythms[7].loop);
-    assert(nf_settings_decode_size(&loaded,bytes,NF_LEGACY_SETTINGS_BYTES));assert(loaded.rhythms[7].steps==1 && loaded.rhythms[7].hits==1 && loaded.rhythms[7].probability==100 && !loaded.rhythms[7].loop);
+    /* Legacy layouts are covered with actual schema 1/2 images in test_presets.py. */
+    bytes[175]=51;assert(!nf_settings_decode(&loaded,bytes));bytes[175]=again[175];
+    bytes[176]=0;assert(!nf_settings_decode(&loaded,bytes));bytes[176]=again[176];
+    bytes[64]=(uint8_t)((bytes[64]&~3u)|3u);assert(!nf_settings_decode(&loaded,bytes));bytes[64]=again[64];
     bytes[2]=2;assert(!nf_settings_decode(&loaded,bytes));bytes[2]=0;bytes[18]=0;assert(!nf_settings_decode(&loaded,bytes));
 }
 static void lifecycle(void) {

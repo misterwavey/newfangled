@@ -83,7 +83,7 @@ void original_app_sync(OriginalApp *a) {
     unsigned manual_resets=0;
     for(unsigned i=0;i<8;++i) {
         if(a->base[i].ratio!=a->ui.outputs[i].ratio && !a->ui.routes[i][0].source)manual_resets|=1u<<i;
-        a->base[i]=a->ui.outputs[i];nf_voice_rhythm(&a->voices[i],a->ui.rhythms[i]);
+        a->base[i]=a->ui.outputs[i];nf_voice_rhythm(&a->voices[i],a->ui.rhythms[i]);nf_voice_groove(&a->voices[i],a->ui.grooves[i]);
         for(unsigned field=0;field<NF_FIELDS;++field)nf_cv_plan(&a->cv_plans[i][field],a->ui.routes[i][field]);
     }
     nf_cv_configure(&a->cv,a->ui.cv_swapped,a->ui.calibration);nf_cv_normalize(&a->cv);cv_values(a,manual_resets);

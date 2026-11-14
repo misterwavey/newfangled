@@ -9,9 +9,13 @@
 typedef struct {uint8_t ratio,shape,width,phase,level,offset;} NfConfig;
 typedef struct {uint8_t steps,hits,rotate,probability,loop;} NfRhythm;
 #define NF_RHYTHM_DEFAULT ((NfRhythm){1,1,0,100,0})
+typedef struct {uint8_t swing,ratchet;} NfGroove;
+#define NF_GROOVE_DEFAULT ((NfGroove){0,1})
 typedef struct {NfConfig config;uint32_t phase,random;NfRhythm rhythm;
-    uint32_t seed,chance,mask;uint8_t index;bool allowed;} NfVoice;
+    uint32_t seed,chance,mask;uint8_t index;bool allowed,swing_odd;NfGroove groove;} NfVoice;
 uint32_t nf_rhythm_mask(NfRhythm rhythm);
+unsigned nf_voice_ratchets(const NfVoice *voice,unsigned step);
+void nf_voice_groove(NfVoice *voice,NfGroove groove);
 void nf_voice_rhythm(NfVoice *voice,NfRhythm rhythm);
 extern const uint8_t nf_multipliers[NF_RATIOS],nf_divisors[NF_RATIOS];
 extern const char *const nf_ratio_names[NF_RATIOS],*const nf_shape_names[NF_SHAPES];

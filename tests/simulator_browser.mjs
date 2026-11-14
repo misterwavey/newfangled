@@ -117,9 +117,22 @@ const decision=sim.core.sim_rhythm(0,6);sim.perform({type:'advance',ms:Math.ceil
 assert.equal(sim.core.sim_rhythm(0,5),1);assert.equal(sim.core.sim_rhythm(0,6),decision);$('start').click();
 $('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
 $('reset').click();assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[8,3,1,50,1]);
-const rhythmBackup=plain(sim.exportPresets());assert.equal(rhythmBackup.version,2);assert.equal(rhythmBackup.slots[1].patch.outputs[0].rhythm.hits,3);
+const rhythmBackup=plain(sim.exportPresets());assert.equal(rhythmBackup.version,3);assert.equal(rhythmBackup.slots[1].patch.outputs[0].rhythm.hits,3);
 sim.replay(plain(sim.session()));assert.deepEqual(plain(sim.exportPresets()),rhythmBackup);
 // Old JSON imports retain pre-rhythm behavior without changing CV calibration.
 const legacy=plain(saved);legacy.version=1;legacy.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.rhythm));
 sim.importPresets(legacy);assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[1,1,0,100,0]);
 console.log('Euclidean rhythm UI, probability loop, preset persistence and legacy JSON upgrade passed.');
+// Swing/ratchets share UI, deterministic traces, presets and migration.
+$('right').click();$('encoder').click();setRhythmField(13,33);setRhythmField(14,3);
+assert.equal(sim.core.sim_groove(0,0),33);assert.equal(sim.core.sim_groove(0,1),4);assert.equal(sim.core.sim_groove(0,2),4);
+$('back').click();$('start').click();sim.perform({type:'advance',ms:3000});
+const swungSession=plain(sim.session()),swungState=plain(sim.state());sim.replay(swungSession);assert.deepEqual(plain(sim.state()),swungState);assert.equal(sim.core.sim_groove(0,0),33);
+$('start').click();$('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
+$('reset').click();assert.equal(sim.core.sim_groove(0,0),33);assert.equal(sim.core.sim_groove(0,1),4);
+const grooveBackup=plain(sim.exportPresets());assert.deepEqual(grooveBackup.slots[0].patch.outputs[0].groove,{swing:33,ratchet:4});
+const badGroove=plain(grooveBackup);badGroove.slots[0].patch.outputs[0].groove.ratchet=9;
+assert.throws(()=>sim.importPresets(badGroove));assert.deepEqual(plain(sim.exportPresets()),grooveBackup);
+const v5=plain(rhythmBackup);v5.version=2;v5.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.groove));sim.importPresets(v5);
+assert.equal(sim.core.sim_groove(0,0),0);assert.equal(sim.core.sim_groove(0,1),1);assert.equal(sim.core.sim_rhythm(0,0),8);
+console.log('Swing/ratchets: controls, trace replay, presets, invalid input and v0.5 migration passed.');

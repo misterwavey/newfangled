@@ -78,9 +78,13 @@ manual/CV ratio behavior and independent output editing. Native/WASM parity and
 browser tests exercise rhythm navigation, saving/rebooting, JSON round trips and
 legacy preset migration. Existing clock, sync, CV and storage tests still apply.
 
-No v0.5 image has been bench-flashed. Suggested check: OUT1 GATE at 120 BPM, X1,
+The owner reports v0.5 works nicely on hardware, without an itemized timing
+acceptance record. Suggested detailed check: OUT1 GATE at 120 BPM, X1,
 STEPS=8, HITS=3, ROT=0, PROB=100. Expect pulses at steps 1, 4 and 7, repeating every
 four seconds. ROT=1 moves these to steps 2, 5 and 8. Try PROB=50 / LOOP ON, confirm
 the same sparse pattern repeats, then reset and compare. Check RANDOM with all
 hits and LOOP ON, Stop-to-zero and saved-patch power-on. Measure hardware timing
 separately; the simulator does not establish physical jitter or ADC calibration.
+
+In v0.6, [SWING and RATCH](groove.md) follow LOOP. Swing changes step duration
+without changing the Euclidean ordering or probability/loop decisions.

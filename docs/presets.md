@@ -1,7 +1,7 @@
-# Presets — v0.5
+# Presets — v0.6
 
 Eight slots store the complete patch: tempo, clock source/PPQN, Run mode, eight
-output configurations and rhythm/probability/loop settings, all 48 CV routes, input swap and both calibration endpoint
+output configurations and rhythm/probability/loop/swing/ratchet settings, all 48 CV routes, input swap and both calibration endpoint
 pairs. Calibration belongs to the saved patch: loading an older slot restores
 its calibration too. Current transport, phases, random state and menu position
 are not stored. No automatic saves occur.
@@ -50,8 +50,8 @@ and implements the halfword programming sequence in its
 [STM32F0 flash driver](https://github.com/STMicroelectronics/stm32f0xx-hal-driver/blob/master/Src/stm32f0xx_hal_flash.c).
 
 Two 4 KiB banks alternate. Each has a versioned header and up to 14 append-only
-256-byte records. A record contains slot/sequence, an explicit 232-byte
-little-endian settings payload (208 bytes for legacy v0.4 records), CRC32 and a final commit halfword. Uncommitted,
+256-byte records. A record contains slot/sequence, an explicit 212-byte
+little-endian settings payload (legacy v0.4/v0.5 records use 208/232 bytes), CRC32 and a final commit halfword. Uncommitted,
 corrupt or semantically invalid records are ignored. When full, the inactive bank
 is erased, seeded with the latest eight slots and sealed last. Its header includes
 a CRC over the checkpoint records, so even a host transfer that writes the footer
@@ -119,8 +119,25 @@ writes schema 2. The bank container and flash reservation are unchanged.
 The extra 24 payload bytes pack each output's rhythm into three bytes:
 STEPS−1 bits 0–4, HITS bits 5–10, ROT bits 11–15, PROB bits 16–22, LOOP bit 23.
 
-JSON exports now use version 2, adding `rhythm` to each output. Version 1 JSON
+v0.5 introduced JSON version 2, adding `rhythm` to each output. Version 1 JSON
 imports remain supported and receive the same defaults. Use current tools:
 v0.4 firmware/tools cannot interpret schema 2 records and block saves when they
 encounter them. Export with v0.5 before downgrading; older firmware may restore
 an older compatible save rather than the most recent v0.5 patch.
+
+## v0.6 format and compatibility
+
+New records use schema 3 with a 212-byte payload; JSON exports use version 3.
+Readers still accept schemas 1/2 and JSON versions 1/2. Old patches gain SWING=0
+and RATCH=1. Existing rhythm settings and CV calibration/routes are preserved.
+The 8 KiB reservation, two banks, record size and commit/recovery scheme are
+unchanged. Only explicitly saved/imported slots gain the new schema; loading
+older slots never writes automatically.
+
+Bytes 0–63 retain the previous global/output settings. Bytes 64–171 pack 48 CV
+routes into 18 bits apiece: source bits 0–1, signed depth byte bits 2–9, signed
+bias byte bits 10–17, in a continuous little-endian bitstream. Bytes 172–211 hold
+five bytes per output: the previous three rhythm bytes, swing 0–50, ratchet 1–8.
+This fits all features without shrinking the application or preset slot count.
+Use current tools for import/export. Older firmware/tools cannot read schema 3;
+export a backup before downgrading, which may restore older settings or defaults.

@@ -1,4 +1,4 @@
-# Pam’s Newfangled Workout v0.5
+# Pam’s Newfangled Workout v0.6
 
 Eight independently configured unipolar outputs on ALM017 Rev 62. Boots stopped;
 Stop parks every output at zero. This is an early, independently authored application
@@ -118,3 +118,10 @@ These filter complete waveform cycles; rests force zero even with offset set.
 See [rhythms and repeatable random patterns](rhythms.md) for controls, timing,
 reset/edit behavior and examples. CV routing still targets the six waveform
 parameters. Presets store the new rhythm settings, with v0.4 load compatibility.
+
+## Swing and ratchets — v0.6
+
+SWING (0–50%) and RATCH (1–8) follow LOOP in each output menu. Swing stretches
+the first cycle of each pair and shortens the next; ratchets subdivide accepted
+GATE steps. See [controls, timing limits and examples](groove.md). Presets/JSON
+retain both settings and can load v0.4/v0.5 data with neutral defaults.
