@@ -1,8 +1,9 @@
 # Pam’s Newfangled Workout
 
-Independent v0.4 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
+Independent v0.5 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
 (STM32F042K6T6). Eight outputs with clock ratios, gate/triangle/ramps/random,
-width, phase, level and offset, external clock/Run inputs, per-parameter CV routing and eight complete-patch preset slots. Boots
+width, phase, level and offset, external clock/Run inputs, per-parameter CV routing, Euclidean rhythms, probability, repeatable random
+patterns and eight complete-patch preset slots. Boots
 stopped; Stop returns all outputs to zero.
 
 This repository contains only the Newfangled firmware, its source dependencies,
@@ -94,7 +95,8 @@ normal Newfangled application updates preserve them. See [presets and JSON backu
 - Hold the encoder on BPM VIEW to open source, PPQN, Run, CV input and PRESETS settings.
 - In PRESETS: choose SLOT, then SAVE or LOAD. Stop/disarm first. Power-on restores
   the last saved patch stopped.
-- Output parameter browsing includes CV SETUP and CV MON; see [CV controls](docs/cv.md).
+- Output parameters include CV SETUP/CV MON and STEPS, HITS, ROT, PROB and LOOP;
+  see [CV controls](docs/cv.md) and [rhythms/random patterns](docs/rhythms.md).
 - Start arms/disarms playback. Hold the encoder and press Start to reset phase.
 - EXT waits for the incoming clock; Run GATE also requires the Run jack high.
   A lost external clock stops outputs and never silently falls back to INT.
@@ -128,6 +130,8 @@ v0.3 CV input sampling/routing needs the [mapping and calibration bench pass](do
 With no saved patch, all routes default OFF. Calibration and assignments persist
 only after explicit SAVE. v0.4 physical preset storage needs the [bench pass](docs/presets.md#validation).
 No stock EEPROM settings or calibration are read or overwritten.
+v0.5 rhythm and random-pattern features have software coverage; their physical
+[bench checks](docs/rhythms.md#validation) remain pending.
 
 ## License and provenance
 

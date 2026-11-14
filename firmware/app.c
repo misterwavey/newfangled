@@ -15,7 +15,7 @@ static void cv_values(OriginalApp *a,unsigned manual_resets) {
         uint8_t value[NF_FIELDS];
         for(unsigned field=0;field<NF_FIELDS;++field)
             value[field]=(uint8_t)nf_cv_apply(&a->cv,&a->cv_plans[i][field],base[field],current[field],maximum[field],minimum[field],field<2);
-        if(manual_resets&(1u<<i))a->voices[i].phase=0;
+        if(manual_resets&(1u<<i))nf_voice_reset(&a->voices[i],i);
         else nf_voice_retime(&a->voices[i],value[0]);
         a->voices[i].config=(NfConfig){value[0],value[1],value[2],value[3],value[4],value[5]};
     }
@@ -83,7 +83,7 @@ void original_app_sync(OriginalApp *a) {
     unsigned manual_resets=0;
     for(unsigned i=0;i<8;++i) {
         if(a->base[i].ratio!=a->ui.outputs[i].ratio && !a->ui.routes[i][0].source)manual_resets|=1u<<i;
-        a->base[i]=a->ui.outputs[i];
+        a->base[i]=a->ui.outputs[i];nf_voice_rhythm(&a->voices[i],a->ui.rhythms[i]);
         for(unsigned field=0;field<NF_FIELDS;++field)nf_cv_plan(&a->cv_plans[i][field],a->ui.routes[i][field]);
     }
     nf_cv_configure(&a->cv,a->ui.cv_swapped,a->ui.calibration);nf_cv_normalize(&a->cv);cv_values(a,manual_resets);

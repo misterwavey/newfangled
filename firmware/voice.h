@@ -7,7 +7,12 @@
 #define NF_SHAPES 5u
 #define NF_FIELDS 6u
 typedef struct {uint8_t ratio,shape,width,phase,level,offset;} NfConfig;
-typedef struct {NfConfig config;uint32_t phase,random;} NfVoice;
+typedef struct {uint8_t steps,hits,rotate,probability,loop;} NfRhythm;
+#define NF_RHYTHM_DEFAULT ((NfRhythm){1,1,0,100,0})
+typedef struct {NfConfig config;uint32_t phase,random;NfRhythm rhythm;
+    uint32_t seed,chance,mask;uint8_t index;bool allowed;} NfVoice;
+uint32_t nf_rhythm_mask(NfRhythm rhythm);
+void nf_voice_rhythm(NfVoice *voice,NfRhythm rhythm);
 extern const uint8_t nf_multipliers[NF_RATIOS],nf_divisors[NF_RATIOS];
 extern const char *const nf_ratio_names[NF_RATIOS],*const nf_shape_names[NF_SHAPES];
 void nf_voice_reset(NfVoice *voice,unsigned channel);

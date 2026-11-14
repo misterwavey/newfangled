@@ -1,7 +1,7 @@
-# Presets — v0.4
+# Presets — v0.5
 
 Eight slots store the complete patch: tempo, clock source/PPQN, Run mode, eight
-output configurations, all 48 CV routes, input swap and both calibration endpoint
+output configurations and rhythm/probability/loop settings, all 48 CV routes, input swap and both calibration endpoint
 pairs. Calibration belongs to the saved patch: loading an older slot restores
 its calibration too. Current transport, phases, random state and menu position
 are not stored. No automatic saves occur.
@@ -50,8 +50,8 @@ and implements the halfword programming sequence in its
 [STM32F0 flash driver](https://github.com/STMicroelectronics/stm32f0xx-hal-driver/blob/master/Src/stm32f0xx_hal_flash.c).
 
 Two 4 KiB banks alternate. Each has a versioned header and up to 14 append-only
-256-byte records. A record contains slot/sequence, an explicit 208-byte
-little-endian settings payload, CRC32 and a final commit halfword. Uncommitted,
+256-byte records. A record contains slot/sequence, an explicit 232-byte
+little-endian settings payload (208 bytes for legacy v0.4 records), CRC32 and a final commit halfword. Uncommitted,
 corrupt or semantically invalid records are ignored. When full, the inactive bank
 is erased, seeded with the latest eight slots and sealed last. Its header includes
 a CRC over the checkpoint records, so even a host transfer that writes the footer
@@ -109,3 +109,18 @@ load both, confirm stopped outputs, then export/import and check again. Keep the
 known-working restore image and export presets before testing interrupted power.
 CV voltage calibration still awaits a reliable reference; presets do not change
 that requirement.
+
+## v0.4 compatibility
+
+v0.5 reads both record schemas: v0.4 schema 1 / 208 bytes and v0.5 schema 2 /
+232 bytes. Legacy patches gain STEPS=1, HITS=1, ROT=0, PROB=100%, LOOP=OFF.
+They sound as before. Loading does not write a migration; explicitly saving
+writes schema 2. The bank container and flash reservation are unchanged.
+The extra 24 payload bytes pack each output's rhythm into three bytes:
+STEPS−1 bits 0–4, HITS bits 5–10, ROT bits 11–15, PROB bits 16–22, LOOP bit 23.
+
+JSON exports now use version 2, adding `rhythm` to each output. Version 1 JSON
+imports remain supported and receive the same defaults. Use current tools:
+v0.4 firmware/tools cannot interpret schema 2 records and block saves when they
+encounter them. Export with v0.5 before downgrading; older firmware may restore
+an older compatible save rather than the most recent v0.5 patch.

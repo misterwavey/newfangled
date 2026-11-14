@@ -9,7 +9,7 @@ void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now) {
     *ui=(OriginalUi){.bpm=120,.previous=raw,.candidate=raw,.stable=raw,.changed_at=now,.ppqn_index=6,.calibration={{0,4095},{2048,4095}}};
     static const uint8_t ratios[8]={5,6,8,4,2,1,5,5};
     for(unsigned i=0;i<8;++i) {
-        ui->outputs[i]=(NfConfig){ratios[i],i==6?1:i==7?2:0,50,0,100,0};ui->effective[i]=ui->outputs[i];
+        ui->outputs[i]=(NfConfig){ratios[i],i==6?1:i==7?2:0,50,0,100,0};ui->effective[i]=ui->outputs[i];ui->rhythms[i]=NF_RHYTHM_DEFAULT;
         for(unsigned field=0;field<NF_FIELDS;++field)ui->routes[i][field]=(NfCvRoute){0,100,0};
     }
 }
@@ -46,12 +46,22 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
             }
             dirty=true;
         } else if(ui->editing && ui->page) {
+            if(ui->field>=8) {
+                NfRhythm *r=&ui->rhythms[ui->page-1];uint8_t *p[]={&r->steps,&r->hits,&r->rotate,&r->probability,&r->loop};
+                unsigned field=ui->field-8,minimum=field==0?1u:0u;
+                unsigned maximum=field==0?32u:field==1?r->steps:field==2?r->steps-1u:field==3?100u:1u;
+                int value=(int)*p[field]+step;
+                if(value>=(int)minimum && value<=(int)maximum) {
+                    *p[field]=(uint8_t)value;if(r->hits>r->steps)r->hits=r->steps;if(r->rotate>=r->steps)r->rotate=(uint8_t)(r->steps-1u);dirty=true;
+                }
+            } else {
             NfConfig *c=&ui->outputs[ui->page-1];
             uint8_t *values[]={&c->ratio,&c->shape,&c->width,&c->phase,&c->level,&c->offset};
             unsigned minimum=ui->field==2?1u:0u;
             unsigned maximum=ui->field==0?NF_RATIOS-1:ui->field==1?NF_SHAPES-1:ui->field==2||ui->field==3?99u:100u;
             int value=(int)*values[ui->field]+step;
             if(value>=(int)minimum && value<=(int)maximum) {*values[ui->field]=(uint8_t)value;dirty=true;}
+        }
         } else if(!ui->page && ui->selecting && ui->editing) {
             if(ui->field==0)ui->external=step>0;
             else if(ui->field==1) {int value=(int)ui->ppqn_index+step;if(value>=0 && value<(int)NF_PPQN_COUNT)ui->ppqn_index=(uint8_t)value;}
@@ -90,7 +100,7 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
             else if(ui->cv_menu) {if(ui->cv_field<4)ui->editing=!ui->editing;}
             else if(ui->page) {
                 if(!ui->selecting) {ui->selecting=true;ui->field=0;}
-                else if(ui->field<NF_FIELDS)ui->editing=!ui->editing;
+                else if(ui->field<NF_FIELDS || ui->field>=8)ui->editing=!ui->editing;
                 else if(ui->field==6) {ui->cv_menu=true;ui->cv_field=0;ui->editing=false;}
                 else {ui->cv_monitor=true;ui->editing=false;}
             } else if(ui->selecting) {
@@ -177,7 +187,7 @@ void original_ui_render(const OriginalUi *ui) {
             }
             return;
         }
-        original_text(14,0,"NEWFANGLED 0.4",1);
+        original_text(14,0,"NEWFANGLED 0.5",1);
         number(ui->external?ui->external_bpm:ui->bpm,value);original_text(0,10,ui->external && !ui->external_bpm?"---":value,2);original_text(43,15,"BPM",1);
         original_text(83,15,ui->editing?"EDIT":"VIEW",1);
         const char *status[]={"TURN OUT / CLICK BPM","EXT WAIT","EXT LOCK","EXT LOST","RUN LOW","EXT ARMED"};
@@ -198,6 +208,11 @@ void original_ui_render(const OriginalUi *ui) {
             else if(ui->cv_field==1) {const char *sources[]={"OFF","CV1","CV2"};x=original_text(0,18,"SRC ",2);original_text(x,18,sources[route.source],2);}
             else if(ui->cv_field<4) {x=original_text(0,18,ui->cv_field==2?"DEP ":"BIAS ",2);x=signed_value(x,18,ui->cv_field==2?route.depth:route.bias,2);original_text(x,18,"%",2);}
             else {parameter(&ui->effective[ui->page-1],ui->cv_target);}
+        } else if(field>=8) {
+            const NfRhythm *r=&ui->rhythms[ui->page-1];const char *labels[]={"STEPS ","HITS ","ROT ","PROB ","LOOP "};
+            unsigned f=field-8,x=original_text(0,18,labels[f],2);unsigned values[]={r->steps,r->hits,r->rotate,r->probability,r->loop};
+            if(f==4)original_text(x,18,r->loop?"ON":"OFF",2);
+            else {number(values[f],value);x=original_text(x,18,value,2);if(f==3)original_text(x,18,"%",2);}
         } else if(field>=NF_FIELDS)original_text(0,18,field==6?"CV SETUP":"CV MON",2);
         else {
             unsigned source=ui->routes[ui->page-1][field].source;

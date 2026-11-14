@@ -17,7 +17,7 @@ import presets as cli
 
 def default_patch(bpm=173):
     route=dict(source='CV2',depth=-100,bias=50)
-    output=dict(ratio='X3',shape='RANDOM',width=27,phase=11,level=83,offset=5,cv={name:dict(route) for name in fmt.FIELDS})
+    output=dict(rhythm=dict(steps=13,hits=5,rotate=11,probability=73,loop=True),ratio='X3',shape='RANDOM',width=27,phase=11,level=83,offset=5,cv={name:dict(route) for name in fmt.FIELDS})
     return dict(tempo_bpm=bpm,clock_source='EXT',ppqn=4,run_input='RESET',cv_swap=True,calibration=[dict(zero=51,positive_5v=3900),dict(zero=2000,positive_5v=120)],outputs=[copy.deepcopy(output) for _ in range(8)])
 
 class Format(unittest.TestCase):
@@ -48,14 +48,33 @@ static unsigned char bytes[8192];
 static bool rd(void *c,unsigned a,void *p,unsigned n){(void)c;memcpy(p,bytes+a,n);return true;}
 static bool er(void *c,unsigned b){(void)c;(void)b;assert(0);return false;}
 static bool wr(void *c,unsigned a,const void *p,unsigned n){(void)c;(void)a;(void)p;(void)n;assert(0);return false;}
-int main(int argc,char **argv){assert(argc==2);FILE *f=fopen(argv[1],"rb");assert(f);assert(fread(bytes,1,8192,f)==8192);fclose(f);
+int main(int argc,char **argv){assert(argc==2 || argc==3);FILE *f=fopen(argv[1],"rb");assert(f);assert(fread(bytes,1,8192,f)==8192);fclose(f);
 NfStore s;NfStoreIo io={0,rd,er,wr};assert(nf_store_open(&s,io)==NF_STORE_OK);assert(s.last_slot==2 && s.sequence==43);
 OriginalUi ui={.running=true};assert(nf_presets_boot(&s,&ui));assert(ui.bpm==173 && !ui.running && ui.external && ui.cv_swapped);
 assert(ui.routes[7][5].depth==-100 && ui.calibration[1].positive==120);
-NfSettings p;unsigned char out[208];nf_settings_capture(&ui,&p);assert(nf_settings_encode(&p,out));fwrite(out,1,208,stdout);
+if(argc==2){assert(ui.rhythms[7].steps==13 && ui.rhythms[7].hits==5 && ui.rhythms[7].rotate==11 && ui.rhythms[7].probability==73 && ui.rhythms[7].loop);}
+else {assert(ui.rhythms[7].steps==1 && ui.rhythms[7].hits==1 && ui.rhythms[7].probability==100 && !ui.rhythms[7].loop);}
+NfSettings p;unsigned char out[NF_SETTINGS_BYTES];nf_settings_capture(&ui,&p);assert(nf_settings_encode(&p,out));fwrite(out,1,NF_SETTINGS_BYTES,stdout);
 }''')
             subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Ifirmware','-Iinclude',str(source),'firmware/store.c','firmware/settings.c','-o',str(exe)],cwd=ROOT,check=True)
             payload=subprocess.check_output([str(exe),str(image)]);self.assertEqual(payload,fmt.encode(default_patch()))
+            old=fmt.encode(default_patch())[:208]
+            image.write_bytes(fmt.bank_image({3:old},3,12,42)+b'\xff'*4096)
+            payload=subprocess.check_output([str(exe),str(image),'legacy'])
+            self.assertEqual(payload,fmt.encode(fmt.decode(old)))
+
+    def test_legacy_preset_upgrade(self):
+        patch=default_patch()
+        for output in patch['outputs']:output.pop('rhythm')
+        old=fmt.encode(patch,legacy=True)[:208]
+        current=fmt.decode(old)
+        self.assertEqual(current['outputs'][7]['rhythm'],dict(steps=1,hits=1,rotate=0,probability=100,loop=False))
+        backup=dict(format='newfangled-presets',version=1,boot_slot=3,slots=[dict(slot=3,patch=patch)])
+        upgraded=fmt.validate(backup)[3];self.assertEqual(len(upgraded),232)
+        self.assertEqual(fmt.decode(upgraded),current)
+        state=fmt.scan(fmt.bank_image({3:old,8:upgraded},3,1,0)+b'\xff'*4096)
+        self.assertFalse(state['future']);self.assertEqual(state['slots'][3],old)
+        self.assertEqual(fmt.library(state)['version'],2)
 
     def test_dfu_preview_guard_and_merge(self):
         media=bytearray(fmt.bank_image({1:fmt.encode(default_patch())},1,1,0)+b'\xff'*4096)
@@ -70,7 +89,7 @@ NfSettings p;unsigned char out[208];nf_settings_capture(&ui,&p);assert(nf_settin
                 self.assertIn('-D',command);writes.append(command);payload=Path(command[-1]).read_bytes();offset=addr-fmt.BASE
                 self.assertIn(offset,[0,4096]);self.assertEqual(len(payload),4096);media[offset:offset+4096]=payload
         with tempfile.TemporaryDirectory() as directory:
-            path=Path(directory)/'presets.json';path.write_text(json.dumps(dict(format='newfangled-presets',version=1,boot_slot=8,slots=[dict(slot=8,patch=default_patch(180))])))
+            path=Path(directory)/'presets.json';path.write_text(json.dumps(dict(format='newfangled-presets',version=2,boot_slot=8,slots=[dict(slot=8,patch=default_patch(180))])))
             args=['presets.py','--serial','ABC','--import',str(path)]
             with patch.object(sys,'argv',args),patch.object(cli.shutil,'which',return_value='dfu-util'),patch.object(cli.subprocess,'run',side_effect=run):cli.main()
             self.assertFalse(writes)

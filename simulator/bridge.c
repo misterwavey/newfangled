@@ -141,3 +141,9 @@ uint32_t sim_preset_import(uint32_t slot) {
     NfSettings settings;if(!nf_settings_decode(&settings,settings_buffer))return NF_STORE_INVALID;
     NfStoreResult r=nf_store_save(&presets,slot,&settings);ui.preset_mask=presets.mask;return r;
 }
+
+uint32_t sim_rhythm(uint32_t channel,uint32_t item) {
+    if(channel>=8)return 0;NfRhythm r=ui.rhythms[channel];
+    unsigned values[]={r.steps,r.hits,r.rotate,r.probability,r.loop,app.voices[channel].index,app.voices[channel].allowed,app.voices[channel].mask};
+    return item<8?values[item]:0;
+}

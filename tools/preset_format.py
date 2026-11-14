@@ -19,8 +19,8 @@ def choice(value,values):
     if isinstance(value,bool):raise ValueError('Invalid preset choice')
     return values.index(value)
 
-def encode(p):
-    b=bytearray(208)
+def encode(p,legacy=False):
+    b=bytearray(232)
     struct.pack_into('<H',b,0,integer(p['tempo_bpm'],10,300))
     b[2:6]=bytes((choice(p['clock_source'],('INT','EXT')),choice(p['ppqn'],PPQN),choice(p['run_input'],RUNS),int(p['cv_swap'])))
     if type(p['cv_swap']) is not bool:raise ValueError('CV swap must be boolean')
@@ -30,15 +30,22 @@ def encode(p):
         for f,name in enumerate(FIELDS):
             b[16+i*6+f]=choice(o[name],RATIOS) if f==0 else choice(o[name],SHAPES) if f==1 else integer(o[name],1 if f==2 else 0,99 if f<4 else 100)
             r=o['cv'][name];struct.pack_into('<Bbb',b,64+(i*6+f)*3,choice(r['source'],SOURCES),integer(r['depth'],-100,100),integer(r['bias'],-100,100))
+        r=dict(steps=1,hits=1,rotate=0,probability=100,loop=False) if legacy else o['rhythm']
+        steps=integer(r['steps'],1,32)
+        if type(r['loop']) is not bool:raise ValueError('Loop must be boolean')
+        bits=(steps-1)|(integer(r['hits'],0,steps)<<5)|(integer(r['rotate'],0,steps-1)<<11)|(integer(r['probability'],0,100)<<16)|(int(r['loop'])<<23)
+        b[208+i*3:211+i*3]=bits.to_bytes(3,'little')
     return bytes(b)
 
 def decode(b):
-    if len(b)!=208 or b[6:8]!=b'\0\0':raise ValueError('Invalid payload')
+    if len(b) not in (208,232) or b[6:8]!=b'\0\0':raise ValueError('Invalid payload')
     p=dict(tempo_bpm=struct.unpack_from('<H',b)[0],clock_source=('INT','EXT')[b[2]],ppqn=PPQN[b[3]],run_input=RUNS[b[4]],cv_swap=bool(b[5]),
            calibration=[dict(zip(('zero','positive_5v'),struct.unpack_from('<HH',b,8+i*4))) for i in range(2)],outputs=[])
     if b[5]>1:raise ValueError('Invalid swap')
     for i in range(8):
         o={name:RATIOS[b[16+i*6]] if f==0 else SHAPES[b[17+i*6]] if f==1 else b[16+i*6+f] for f,name in enumerate(FIELDS)}
+        bits=int.from_bytes(b[208+i*3:211+i*3],'little') if len(b)==232 else 32|(100<<16)
+        o['rhythm']=dict(steps=(bits&31)+1,hits=(bits>>5)&63,rotate=(bits>>11)&31,probability=(bits>>16)&127,loop=bool(bits>>23))
         o['cv']={}
         for f,name in enumerate(FIELDS):
             source,depth,bias=struct.unpack_from('<Bbb',b,64+(i*6+f)*3);o['cv'][name]=dict(source=SOURCES[source],depth=depth,bias=bias)
@@ -47,13 +54,13 @@ def decode(b):
     return p
 
 def validate(library):
-    if library['format']!='newfangled-presets' or library['version']!=1 or type(library['version']) is not int:raise ValueError('Unsupported preset backup')
+    if library['format']!='newfangled-presets' or library['version'] not in (1,2) or type(library['version']) is not int:raise ValueError('Unsupported preset backup')
     if not isinstance(library['slots'],list) or len(library['slots'])>8:raise ValueError('Invalid slots')
     slots={}
     for slot in library['slots']:
         n=integer(slot['slot'],1,8)
         if n in slots:raise ValueError('Duplicate slot')
-        slots[n]=encode(slot['patch'])
+        slots[n]=encode(slot['patch'],legacy=library['version']==1)
     boot=library['boot_slot']
     if slots and boot is None:raise ValueError('Nonempty library needs a boot slot')
     if boot is not None:
@@ -64,7 +71,7 @@ def validate(library):
 def newer(a,b):return 0<((a-b)&0xffffffff)<0x80000000
 
 def record(slot,sequence,payload):
-    decode(payload);b=bytearray(b'\xff'*256);b[:4]=b'NFP1';struct.pack_into('<HHB',b,4,1,208,slot-1);struct.pack_into('<I',b,12,sequence&0xffffffff);b[16:224]=payload
+    decode(payload);b=bytearray(b'\xff'*256);b[:4]=b'NFP1';struct.pack_into('<HHB',b,4,1 if len(payload)==208 else 2,len(payload),slot-1);struct.pack_into('<I',b,12,sequence&0xffffffff);b[16:16+len(payload)]=payload
     struct.pack_into('<I',b,248,zlib.crc32(b[:248]));struct.pack_into('<H',b,254,0xc33c);return bytes(b)
 
 def scan(media):
@@ -86,17 +93,17 @@ def scan(media):
         at=bank*BANK_BYTES+256*(i+1);r=media[at:at+256]
         if r[:4]!=b'NFP1' or r[-2:]!=b'<\xc3' or struct.unpack_from('<I',r,248)[0]!=zlib.crc32(r[:248]):continue
         schema,size=struct.unpack_from('<HH',r,4)
-        if schema!=1:future=True;continue
-        if size!=208 or r[8]>=8:continue
-        try:decode(r[16:224])
+        if schema not in (1,2):future=True;continue
+        if size!=(208 if schema==1 else 232) or r[8]>=8:continue
+        try:decode(r[16:16+size])
         except (ValueError,IndexError):continue
         slot=r[8]+1;seq=struct.unpack_from('<I',r,12)[0]
-        if slot not in slots or newer(seq,slots[slot][0]):slots[slot]=(seq,r[16:224])
+        if slot not in slots or newer(seq,slots[slot][0]):slots[slot]=(seq,r[16:16+size])
         if boot is None or newer(seq,sequence):sequence,boot=seq,slot
     return dict(bank=bank,generation=generation,sequence=sequence,slots={s:p[1] for s,p in slots.items()},boot_slot=boot,future=future)
 
 def library(state):
-    return dict(format='newfangled-presets',version=1,boot_slot=state['boot_slot'],slots=[dict(slot=s,patch=decode(p)) for s,p in sorted(state['slots'].items())])
+    return dict(format='newfangled-presets',version=2,boot_slot=state['boot_slot'],slots=[dict(slot=s,patch=decode(p)) for s,p in sorted(state['slots'].items())])
 
 def bank_image(slots,boot,generation,sequence):
     b=bytearray(b'\xff'*BANK_BYTES)

@@ -57,7 +57,7 @@ def main():
     validation=json.loads((ROOT/'docs/validation.json').read_text())
     if len(data)>24576:raise ValueError('application overlaps preset flash')
     tested=not args.inputs and hashlib.sha256(data).hexdigest()==validation['image_sha256']
-    report=dict(application=('Newfangled physical input monitor; all outputs zero' if args.inputs else 'Pam’s Newfangled Workout v0.4: eight outputs, ratios and waveforms'),flash_bytes=len(data),application_limit_bytes=24576,preset_slots=8,preset_storage="internal flash 0x08006000..0x08007fff",
+    report=dict(application=('Newfangled physical input monitor; all outputs zero' if args.inputs else 'Pam’s Newfangled Workout v0.5: Euclidean rhythms, probability and repeatable random patterns'),flash_bytes=len(data),application_limit_bytes=24576,preset_slots=8,preset_storage="internal flash 0x08006000..0x08007fff",
                 sha256=hashlib.sha256(data).hexdigest(),hardware_tested=tested,hardware_validation=validation if tested else None,stock_binary_required=False,
                 inputs={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in INPUTS},
                 font_origin='Manually authored 5x7 row glyphs in firmware/font.c',

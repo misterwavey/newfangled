@@ -107,3 +107,19 @@ for(let i=0;i<7;i++)$('left').click();$('encoder').click();$('right').click();$(
 assert.equal(sim.core.sim_get(38),3);assert.equal(sim.state().bpm,121);assert.equal(sim.state().armed,false);
 $('reset').click();assert.equal(sim.state().bpm,179);
 console.log('Presets: stopped-only Save/Load, power-cycle, JSON validation, CV/calibration, session replay and local persistence passed.');
+// Euclidean/probability/loop editing uses the same output menu as hardware.
+$('right').click();$('encoder').click();
+function setRhythmField(field,delta){while(sim.core.sim_get(18)!==field)$('right').click();$('encoder').click();for(let i=0;i<Math.abs(delta);i++)$(delta>0?'right':'left').click();$('encoder').click();}
+setRhythmField(8,7);setRhythmField(9,2);setRhythmField(10,1);setRhythmField(11,-50);setRhythmField(12,1);
+assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[8,3,1,50,1]);assert.equal(sim.core.sim_rhythm(0,7),0x92);
+$('back').click();$('start').click();assert.equal(sim.core.sim_output(0),0);sim.perform({type:'advance',ms:500});
+const decision=sim.core.sim_rhythm(0,6);sim.perform({type:'advance',ms:Math.ceil(8*60000/sim.state().bpm)});
+assert.equal(sim.core.sim_rhythm(0,5),1);assert.equal(sim.core.sim_rhythm(0,6),decision);$('start').click();
+$('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
+$('reset').click();assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[8,3,1,50,1]);
+const rhythmBackup=plain(sim.exportPresets());assert.equal(rhythmBackup.version,2);assert.equal(rhythmBackup.slots[1].patch.outputs[0].rhythm.hits,3);
+sim.replay(plain(sim.session()));assert.deepEqual(plain(sim.exportPresets()),rhythmBackup);
+// Old JSON imports retain pre-rhythm behavior without changing CV calibration.
+const legacy=plain(saved);legacy.version=1;legacy.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.rhythm));
+sim.importPresets(legacy);assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[1,1,0,100,0]);
+console.log('Euclidean rhythm UI, probability loop, preset persistence and legacy JSON upgrade passed.');
