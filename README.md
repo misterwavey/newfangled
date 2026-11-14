@@ -5,9 +5,9 @@ Independent v0.1 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
 width, phase, level and offset. Boots stopped; Stop returns all outputs to zero.
 
 This repository contains only the Newfangled firmware, its source dependencies,
-build/DFU tools, documentation and focused tests. It contains no stock firmware,
+build/DFU tools, the offline browser simulator, documentation and focused tests. It contains no stock firmware,
 recovered application, reverse-engineering artifacts, downloaded vendor manuals,
-prebuilt binaries or desktop simulator. No stock file is needed to build.
+prebuilt binaries. No stock file is needed to build.
 
 ## Build
 
@@ -16,7 +16,7 @@ The build can use `ld.lld` or Rust’s bundled `rust-lld`. No Python packages,
 network downloads, proprietary SDK or vendor firmware are required.
 
 ```sh
-make test
+make test-firmware
 make newfangled
 ```
 
@@ -28,6 +28,38 @@ stack headroom. Set `PNW_CC` and `PNW_LD` to override compiler/linker paths.
 On macOS, installed Apple Clang can build this ARM target; Rust’s installed LLD
 is detected automatically. On Linux, install Clang and LLD through your package
 manager, or supply their paths. `dfu-util` is only needed for flashing.
+
+## Browser simulator
+
+```sh
+make simulator-dev
+```
+
+Open http://127.0.0.1:8765. The server watches source changes, rebuilds the shared
+C engine/UI to WebAssembly, and reloads the page while preserving compatible
+sessions. No unzipping, flashing or hardware connection is involved.
+
+Use `make simulator` to create `build/simulator/index.html`, a self-contained
+HTML file with embedded WebAssembly, CSS and JavaScript that also works offline.
+Click **Play** to advance virtual time, then **Start** to run the module.
+The simulator uses the same firmware engine, UI and font; it does not emulate
+MCU execution time, physical DAC behavior or jitter. See [simulator guide](docs/simulator.md).
+
+Simulator builds need LLVM Clang with a `wasm32` backend plus `wasm-ld` or
+Rust’s bundled `rust-lld`. Apple Clang usually lacks that backend; on macOS,
+Homebrew LLVM is detected at `/usr/local/opt/llvm` or `/opt/homebrew/opt/llvm`.
+Override paths with `PNW_WASM_CC` and `PNW_WASM_LD` if needed.
+
+For the full test suite, also install Node.js:
+
+```sh
+make test
+```
+
+The suite compares native C and WebAssembly output values, pixels and traces,
+checks controls/replay using a minimal DOM adapter, and tests development-server
+routes/rebuild behavior. `make test-firmware` needs only the firmware host-test
+requirements; it does not build WebAssembly or invoke Node.
 
 ## Flash
 
@@ -69,11 +101,11 @@ defaults, abbreviations, timing limitations and the zero-output input diagnostic
 - `firmware/board.c`, `gate_bus.c`, `protocol.c`: peripheral and SPI/DAC handling.
 - `firmware/startup.c`, `runtime.c`, `divmod.S`, `stm32f042.ld`: MCU runtime/linker.
 - `tools/build.py`, `flash.py`: build and explicitly requested DFU writes.
-- `tests/`: portable UI, engine and clock requirements.
+- `simulator/`: browser interface, WebAssembly bridge and output monitors.
+- `tools/build_simulator.py`, `serve_simulator.py`: offline build and live development.
+- `tests/`: portable UI/engine/clock, native/WASM parity, browser-control and server tests.
 
-The larger development workspace also has simulator and compiled-ARM interruption
-tests; those research/development tools are intentionally outside this firmware-only
-repository. The portable tests here do not emulate peripherals or measure real jitter.
+The tests do not measure real interrupt timing, analog output accuracy or jitter.
 
 ## License and provenance
 

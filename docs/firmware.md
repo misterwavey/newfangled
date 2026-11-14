@@ -11,7 +11,7 @@ using the existing board SDK. No stock binary is needed to build it.
 - Shapes: gate, triangle, rising ramp, falling ramp, stepped random.
 - Gate width: 1–99%; phase: 0–99%; level and positive offset: 0–100%.
 - Nominal voltage range: 0–5 V; level plus offset clips at full scale.
-- Portable C engine, UI and manually authored font.
+- Portable C engine, UI and manually authored font shared with the included browser simulator.
 
 Defaults: OUT1 ×1 gate; OUT2 ×2 gate; OUT3 ×4 gate; OUT4 ÷2 gate;
 OUT5 ÷4 gate; OUT6 ÷8 gate; OUT7 ×1 triangle; OUT8 ×1 rising ramp.
