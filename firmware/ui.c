@@ -13,10 +13,17 @@ void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now) {
         for(unsigned field=0;field<NF_FIELDS;++field)ui->routes[i][field]=(NfCvRoute){0,100,0};
     }
 }
+bool original_ui_clear_output(OriginalUi *ui,unsigned output) {
+    if(output>=8)return false;
+    ui->outputs[output]=(NfConfig){5,0,50,0,0,0};ui->effective[output]=ui->outputs[output];
+    ui->rhythms[output]=NF_RHYTHM_DEFAULT;ui->grooves[output]=NF_GROOVE_DEFAULT;ui->tones[output]=NF_TONE_DEFAULT;
+    for(unsigned f=0;f<NF_FIELDS;++f)ui->routes[output][f]=(NfCvRoute){0,100,0};
+    ++ui->output_reset[output];return true;
+}
 static bool hold_program(OriginalUi *ui) {
     ui->program_consumed=true;
-    if(ui->editing || ui->selecting || ui->cv_menu || ui->cv_monitor || ui->preset_menu) {
-        ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;ui->preset_menu=false;return true;
+    if(ui->editing || ui->selecting || ui->cv_menu || ui->cv_monitor || ui->preset_menu || ui->clear_confirm) {
+        ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;ui->preset_menu=false;ui->clear_confirm=false;ui->clear_yes=false;return true;
     }
     if(!ui->page) {ui->selecting=true;ui->field=0;return true;}
     return false;
@@ -30,7 +37,8 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
     ui->previous=raw;
     if(ui->encoder>=4 || ui->encoder<=-4) {
         int step=ui->encoder>0?1:-1;ui->encoder=0;
-        if(ui->preset_menu) {
+        if(ui->clear_confirm) {ui->clear_yes=step>0;dirty=true;}
+        else if(ui->preset_menu) {
             if(ui->editing) {int slot=(int)ui->preset_slot+step;if(slot>=0 && slot<8)ui->preset_slot=(uint8_t)slot;}
             else ui->preset_field=(uint8_t)(((int)ui->preset_field+step+3)%3);
             ui->preset_status=NF_PRESET_IDLE;dirty=true;
@@ -93,13 +101,16 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
         if(program) {ui->program_at=now;ui->program_consumed=false;}
         if(start) {
             if(!(raw&4u)) {
-                ++ui->reset_count;ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;ui->preset_menu=false;ui->program_consumed=true;
+                ++ui->reset_count;ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;ui->preset_menu=false;ui->clear_confirm=false;ui->clear_yes=false;ui->program_consumed=true;
             } else ui->running=!ui->running;
             dirty=true;
         }
         if(released && !ui->program_consumed) {
             if((uint32_t)(now-ui->program_at)>=500u) {
                 (void)hold_program(ui);
+            } else if(ui->clear_confirm) {
+                bool clear=ui->clear_yes;ui->clear_confirm=false;ui->clear_yes=false;
+                if(clear && original_ui_clear_output(ui,ui->page-1u)){ui->editing=false;ui->selecting=false;ui->field=0;}
             } else if(ui->preset_menu) {
                 if(!ui->preset_field)ui->editing=!ui->editing;
                 else if(ui->running || ui->active)ui->preset_status=NF_PRESET_STOP;
@@ -108,6 +119,7 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
             else if(ui->cv_menu) {if(ui->cv_field<4)ui->editing=!ui->editing;}
             else if(ui->page) {
                 if(!ui->selecting) {ui->selecting=true;ui->field=0;}
+                else if(ui->field==NF_CLEAR_FIELD) {ui->clear_confirm=true;ui->clear_yes=false;ui->editing=false;}
                 else if(ui->field<NF_FIELDS || ui->field>=8)ui->editing=!ui->editing;
                 else if(ui->field==6) {ui->cv_menu=true;ui->cv_field=0;ui->editing=false;}
                 else {ui->cv_monitor=true;ui->editing=false;}
@@ -195,7 +207,7 @@ void original_ui_render(const OriginalUi *ui) {
             }
             return;
         }
-        original_text(14,0,"NEWFANGLED 0.7",1);
+        original_text(14,0,"NEWFANGLED 0.8",1);
         number(ui->external?ui->external_bpm:ui->bpm,value);original_text(0,10,ui->external && !ui->external_bpm?"---":value,2);original_text(43,15,"BPM",1);
         original_text(83,15,ui->editing?"EDIT":"VIEW",1);
         const char *status[]={"TURN OUT / CLICK BPM","EXT WAIT","EXT LOCK","EXT LOST","RUN LOW","EXT ARMED"};
@@ -205,8 +217,9 @@ void original_ui_render(const OriginalUi *ui) {
         original_text(0,0,"OUT",2);number(ui->page,value);original_text(40,0,value,2);
         unsigned field=ui->selecting?ui->field:0;
         bool routed_base=ui->editing && !ui->cv_menu && field<NF_FIELDS && ui->routes[ui->page-1][field].source;
-        original_text(64,0,routed_base?"BASE":ui->editing?"EDIT":ui->selecting?"SELECT":"VIEW",1);
+        original_text(64,0,ui->clear_confirm?"CONFIRM":routed_base?"BASE":ui->editing?"EDIT":ui->selecting?"SELECT":"VIEW",1);
         transport_icon(119,ui->active);
+        if(ui->clear_confirm) {original_text(0,18,ui->clear_yes?"CLEAR? YES":"CLEAR? NO",2);return;}
         if(ui->timing_fault) {original_text(0,21,"TIMING FAULT",1);return;}
         if(ui->cv_menu) {
             NfCvRoute route=ui->routes[ui->page-1][ui->cv_target];
@@ -216,7 +229,8 @@ void original_ui_render(const OriginalUi *ui) {
             else if(ui->cv_field==1) {const char *sources[]={"OFF","CV1","CV2"};x=original_text(0,18,"SRC ",2);original_text(x,18,sources[route.source],2);}
             else if(ui->cv_field<4) {x=original_text(0,18,ui->cv_field==2?"DEP ":"BIAS ",2);x=signed_value(x,18,ui->cv_field==2?route.depth:route.bias,2);original_text(x,18,"%",2);}
             else {parameter(&ui->effective[ui->page-1],ui->cv_target);}
-        } else if(field>=15) {
+        } else if(field==NF_CLEAR_FIELD)original_text(0,18,"CLEAR OUT",2);
+        else if(field>=15) {
             NfTone t=ui->tones[ui->page-1];unsigned x;
             if(field==15) {x=original_text(0,18,"SLW ",2);number(t.slew*20u,value);x=original_text(x,18,value,2);original_text(x,18,"MS",2);}
             else if(field==16) {x=original_text(0,18,"SCL ",2);original_text(x,18,nf_scale_names[t.scale],2);}

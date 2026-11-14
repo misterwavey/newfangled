@@ -153,3 +153,21 @@ assert.throws(()=>sim.importPresets(invalidPitch));assert.deepEqual(plain(sim.ex
 const oldV6=plain(pitchBackup);oldV6.version=3;oldV6.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.pitch));sim.importPresets(oldV6);
 assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[0,0,1,0]);
 console.log('Pitch/slew controls, target notes, glide, Stop, preset replay and v0.6 migration passed.');
+// Clear OUT1 while running; cancelling does nothing and saved slots stay intact.
+const beforeClearLibrary=plain(sim.exportPresets());$('start').click();$('right').click();$('encoder').click();$('left').click();
+assert.equal(sim.core.sim_get(18),19);$('encoder').click();assert.equal(sim.core.sim_get(42),1);assert.equal(sim.core.sim_get(43),0);
+$('encoder').click();assert.equal(sim.core.sim_get(42),0);assert.equal(sim.core.sim_effective(0,4),100);
+$('encoder').click();$('right').click();$('back').click();assert.equal(sim.core.sim_get(42),0);assert.equal(sim.core.sim_effective(0,4),100);
+$('encoder').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();
+assert.equal(sim.core.sim_get(42),0);assert.equal(sim.state().selecting,false);assert.equal(sim.state().running,true);assert.equal(sim.core.sim_output(0),0);
+for(let f=0;f<6;f++)assert.equal(sim.core.sim_cv_route(0,f,0),0);
+assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[1,1,0,100,0]);
+assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[0,0,1,0]);
+sim.perform({type:'input',index:0,value:4095});sim.perform({type:'input',index:1,value:4095});sim.perform({type:'advance',ms:1000});assert.equal(sim.core.sim_output(0),0);
+assert.deepEqual(plain(sim.exportPresets()),beforeClearLibrary);
+const clearSession=plain(sim.session());sim.replay(clearSession);assert.equal(sim.core.sim_output(0),0);assert.equal(sim.state().running,true);
+// Power cycling restores the saved patch; Save makes the cleared output persistent.
+$('reset').click();assert.equal(sim.core.sim_effective(0,4),100);$('right').click();$('encoder').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();
+$('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
+$('reset').click();assert.equal(sim.core.sim_output(0),0);assert.equal(sim.core.sim_effective(0,4),0);
+console.log('Output clear: confirmation, cancel/Back, running silence, CV isolation, unchanged slots and explicit Save passed.');

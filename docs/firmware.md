@@ -1,4 +1,4 @@
-# Pam’s Newfangled Workout v0.7
+# Pam’s Newfangled Workout v0.8
 
 Eight independently configured unipolar outputs on ALM017 Rev 62. Boots stopped;
 Stop parks every output at zero. This is an early, independently authored application
@@ -133,3 +133,29 @@ outputs; gates/ratchets and other shapes retain their timing. Scale quantization
 is off by default. Pitch uses nominal 1 V/oct conversion, pending physical
 output calibration. See [random pitch and slew](pitch.md) for scales, control
 ordering, glide lifecycle, nominal tuning limits and bench checks.
+
+## Clear one output — v0.8
+
+From an OUT's VIEW screen, click to select RATIO, then turn one step left to
+**CLEAR OUT** (also the last item after OCTS). Click to open **CLEAR? NO**, turn
+right to **YES**, and click to clear. Choosing NO leaves the output unchanged;
+holding the encoder cancels and returns directly to VIEW. Confirmation always
+starts at NO. In the simulator, Back/Escape performs the hold.
+
+An empty output is silent: X1 GATE, WIDTH=50, PHASE=0, LEVEL=0, OFFS=0. Its six
+CV routes are OFF with default depth/bias; Euclidean, probability, loop, swing,
+ratchet and pitch/slew settings return to neutral defaults. Its phase, random
+sequence and in-progress slew reset too. It remains silent under incoming CV.
+Set LEVEL back to 100 to enable a plain X1 gate, then configure it as desired.
+
+Clear can be used while playback runs. It does not restart the master clock or
+other outputs and does not alter tempo, source, PPQN, Run mode, calibration or
+saved preset slots. Clearing is an unsaved patch edit: explicitly SAVE afterward
+if it should survive power-on. Loading a saved patch can restore the previous
+output. The preset format remains unchanged from v0.7 (schema/JSON version 4).
+
+Native tests cover cancellation, confirmation, each of eight output positions,
+clearing while running, independent phase/random state, zero output under CV and
+re-enabling an already-cleared output. Browser tests cover the real gestures,
+session replay and explicit Save/power-cycle behavior. Physical v0.8 clearing
+has not yet been bench-tested.

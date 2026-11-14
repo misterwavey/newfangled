@@ -3,7 +3,7 @@
 #define ORIGINAL_APP_H
 #include "clock.h"
 #include "ui.h"
-typedef struct {OriginalUi ui;OriginalClock clock;uint32_t reset_seen;NfVoice voices[8];uint16_t output[8];
+typedef struct {OriginalUi ui;OriginalClock clock;uint32_t reset_seen,output_reset_seen[8];NfVoice voices[8];uint16_t output[8];
     NfSync sync;
     uint32_t now_us;
     bool external,requested,run_high,reset_input;

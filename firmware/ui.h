@@ -15,6 +15,7 @@ typedef struct {
     bool editing,running,timing_fault;
     unsigned field;
     NfConfig outputs[8];
+    uint32_t output_reset[8];
     NfRhythm rhythms[8];NfGroove grooves[8];NfTone tones[8];
     bool selecting,program_consumed;
     uint32_t program_at;
@@ -27,9 +28,11 @@ typedef struct {
     uint16_t cv_raw[2];int32_t cv_normalized[2];
     uint8_t cv_valid,cv_raw_valid,cv_field,cv_target,cv_input;
     bool cv_menu,cv_monitor,cv_swapped;
-    bool preset_menu;
+    bool preset_menu,clear_confirm,clear_yes;
     uint8_t preset_slot,preset_field,preset_command,preset_status,preset_mask;
 } OriginalUi;
+/* Reset one output to silent defaults; transport/global state and slots stay intact. */
+bool original_ui_clear_output(OriginalUi *ui,unsigned output);
 void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now);
 bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now);
 void original_ui_render(const OriginalUi *ui);
