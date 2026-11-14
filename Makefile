@@ -76,3 +76,10 @@ build/test-groove: tests/test_groove.c tests/oled_stub.c firmware/voice.c firmwa
 test-groove: build/test-groove
 	./build/test-groove
 test-firmware: test-groove
+
+build/test-pitch: tests/test_pitch.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/ui.h | build
+	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_pitch.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
+.PHONY: test-pitch
+test-pitch: build/test-pitch
+	./build/test-pitch
+test-firmware: test-pitch

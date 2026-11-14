@@ -1,7 +1,7 @@
-# Presets — v0.6
+# Presets — v0.7
 
 Eight slots store the complete patch: tempo, clock source/PPQN, Run mode, eight
-output configurations and rhythm/probability/loop/swing/ratchet settings, all 48 CV routes, input swap and both calibration endpoint
+output configurations and rhythm/probability/loop/swing/ratchet and random pitch/slew settings, all 48 CV routes, input swap and both calibration endpoint
 pairs. Calibration belongs to the saved patch: loading an older slot restores
 its calibration too. Current transport, phases, random state and menu position
 are not stored. No automatic saves occur.
@@ -50,8 +50,8 @@ and implements the halfword programming sequence in its
 [STM32F0 flash driver](https://github.com/STMicroelectronics/stm32f0xx-hal-driver/blob/master/Src/stm32f0xx_hal_flash.c).
 
 Two 4 KiB banks alternate. Each has a versioned header and up to 14 append-only
-256-byte records. A record contains slot/sequence, an explicit 212-byte
-little-endian settings payload (legacy v0.4/v0.5 records use 208/232 bytes), CRC32 and a final commit halfword. Uncommitted,
+256-byte records. A record contains slot/sequence, an explicit 228-byte
+little-endian settings payload (v0.4/v0.5/v0.6 records use 208/232/212 bytes), CRC32 and a final commit halfword. Uncommitted,
 corrupt or semantically invalid records are ignored. When full, the inactive bank
 is erased, seeded with the latest eight slots and sealed last. Its header includes
 a CRC over the checkpoint records, so even a host transfer that writes the footer
@@ -141,3 +141,19 @@ five bytes per output: the previous three rhythm bytes, swing 0–50, ratchet 1�
 This fits all features without shrinking the application or preset slot count.
 Use current tools for import/export. Older firmware/tools cannot read schema 3;
 export a backup before downgrading, which may restore older settings or defaults.
+
+## v0.7 format and compatibility
+
+Schema 4 uses a 228-byte payload, retaining v0.6 bytes 0–211 unchanged. Each
+output adds one little-endian 16-bit word at 212 + output×2: scale index bits
+0–2, root 0–11 bits 3–6, octave range minus one bits 7–8, slew in 20 ms units
+0–100 bits 9–15. JSON version 4 adds each output’s `pitch` object with `scale`,
+`root`, `octaves` and `slew_ms`; the last must be a multiple of 20.
+
+Schemas/JSON versions 1–3 remain readable. Older patches default to scale OFF,
+root C, one octave and slew zero, preserving their original output. All previous
+rhythm, groove, CV routing and calibration settings remain intact. Loading never
+writes a migration; explicit Save/Import writes the current schema. The two-bank
+journal, eight slots, flash reservation and external EEPROM policy are unchanged.
+Use v0.7 tools for export/import before downgrading: older firmware cannot read
+schema 4 and may restore an older patch or defaults.

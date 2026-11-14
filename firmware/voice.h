@@ -11,8 +11,17 @@ typedef struct {uint8_t steps,hits,rotate,probability,loop;} NfRhythm;
 #define NF_RHYTHM_DEFAULT ((NfRhythm){1,1,0,100,0})
 typedef struct {uint8_t swing,ratchet;} NfGroove;
 #define NF_GROOVE_DEFAULT ((NfGroove){0,1})
+#define NF_SCALES 7u
+typedef struct {uint8_t scale,root,range,slew;} NfTone;
+#define NF_TONE_DEFAULT ((NfTone){0,0,1,0})
+extern const char *const nf_scale_names[NF_SCALES],*const nf_note_names[12];
+unsigned nf_pitch_note(NfTone tone,unsigned code);
 typedef struct {NfConfig config;uint32_t phase,random;NfRhythm rhythm;
-    uint32_t seed,chance,mask;uint8_t index;bool allowed,swing_odd;NfGroove groove;} NfVoice;
+    uint32_t seed,chance,mask;uint8_t index;bool allowed,swing_odd;NfGroove groove;NfTone tone;
+    int32_t slew_position;uint16_t slew_target,slew_remaining;bool slew_primed;} NfVoice;
+unsigned nf_voice_note(const NfVoice *voice);
+void nf_voice_tone(NfVoice *voice,NfTone tone);
+uint16_t nf_voice_output(NfVoice *voice,bool running,unsigned bpm,bool tick);
 uint32_t nf_rhythm_mask(NfRhythm rhythm);
 unsigned nf_voice_ratchets(const NfVoice *voice,unsigned step);
 void nf_voice_groove(NfVoice *voice,NfGroove groove);

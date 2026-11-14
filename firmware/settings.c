@@ -7,16 +7,16 @@ static unsigned get16(const uint8_t *p) {return p[0]|((unsigned)p[1]<<8);}
 void nf_settings_capture(const OriginalUi *u,NfSettings *s) {
     s->bpm=(uint16_t)u->bpm;s->external=u->external;s->ppqn_index=u->ppqn_index;s->run_mode=u->run_mode;s->swapped=u->cv_swapped;
     for(unsigned i=0;i<2;++i)s->calibration[i]=u->calibration[i];
-    for(unsigned i=0;i<8;++i) {s->outputs[i]=u->outputs[i];s->rhythms[i]=u->rhythms[i];s->grooves[i]=u->grooves[i];for(unsigned f=0;f<NF_FIELDS;++f)s->routes[i][f]=u->routes[i][f];}
+    for(unsigned i=0;i<8;++i) {s->outputs[i]=u->outputs[i];s->rhythms[i]=u->rhythms[i];s->grooves[i]=u->grooves[i];s->tones[i]=u->tones[i];for(unsigned f=0;f<NF_FIELDS;++f)s->routes[i][f]=u->routes[i][f];}
 }
 void nf_settings_apply(OriginalUi *u,const NfSettings *s) {
     u->bpm=s->bpm;u->external=s->external!=0;u->ppqn_index=s->ppqn_index;u->run_mode=s->run_mode;u->cv_swapped=s->swapped!=0;
     for(unsigned i=0;i<2;++i)u->calibration[i]=s->calibration[i];
-    for(unsigned i=0;i<8;++i) {u->outputs[i]=s->outputs[i];u->rhythms[i]=s->rhythms[i];u->grooves[i]=s->grooves[i];for(unsigned f=0;f<NF_FIELDS;++f)u->routes[i][f]=s->routes[i][f];}
+    for(unsigned i=0;i<8;++i) {u->outputs[i]=s->outputs[i];u->rhythms[i]=s->rhythms[i];u->grooves[i]=s->grooves[i];u->tones[i]=s->tones[i];for(unsigned f=0;f<NF_FIELDS;++f)u->routes[i][f]=s->routes[i][f];}
     u->running=false;u->active=false;u->editing=false;++u->reset_count;
 }
 bool nf_settings_decode_size(NfSettings *s,const uint8_t *p,unsigned length) {
-    if(length!=NF_SETTINGS_BYTES && length!=NF_LEGACY_SETTINGS_BYTES && length!=NF_V5_SETTINGS_BYTES)return false;
+    if(length!=NF_SETTINGS_BYTES && length!=NF_LEGACY_SETTINGS_BYTES && length!=NF_V5_SETTINGS_BYTES && length!=NF_V6_SETTINGS_BYTES)return false;
     unsigned bpm=get16(p);
     if(bpm<10 || bpm>300 || p[2]>1 || p[3]>=NF_PPQN_COUNT || p[4]>NF_RUN_RESET || p[5]>1 || p[6] || p[7])return false;
     s->bpm=(uint16_t)bpm;s->external=p[2];s->ppqn_index=p[3];s->run_mode=p[4];s->swapped=p[5];
@@ -29,20 +29,25 @@ bool nf_settings_decode_size(NfSettings *s,const uint8_t *p,unsigned length) {
         const uint8_t *v=p+16+i*6;
         if(v[0]>=NF_RATIOS || v[1]>=NF_SHAPES || v[2]<1 || v[2]>99 || v[3]>99 || v[4]>100 || v[5]>100)return false;
         s->outputs[i]=(NfConfig){v[0],v[1],v[2],v[3],v[4],v[5]};
-        s->rhythms[i]=NF_RHYTHM_DEFAULT;s->grooves[i]=NF_GROOVE_DEFAULT;
+        s->rhythms[i]=NF_RHYTHM_DEFAULT;s->grooves[i]=NF_GROOVE_DEFAULT;s->tones[i]=NF_TONE_DEFAULT;
         if(length!=NF_LEGACY_SETTINGS_BYTES) {
             const uint8_t *r=length==NF_V5_SETTINGS_BYTES?p+208+i*3:p+172+i*5;uint32_t bits=r[0]|((uint32_t)r[1]<<8)|((uint32_t)r[2]<<16);
             NfRhythm rhythm={(uint8_t)((bits&31u)+1u),(uint8_t)((bits>>5)&63u),(uint8_t)((bits>>11)&31u),(uint8_t)((bits>>16)&127u),(uint8_t)(bits>>23)};
             if(rhythm.hits>rhythm.steps || rhythm.rotate>=rhythm.steps || rhythm.probability>100)return false;
             s->rhythms[i]=rhythm;
-            if(length==NF_SETTINGS_BYTES) {
+            if(length==NF_SETTINGS_BYTES || length==NF_V6_SETTINGS_BYTES) {
                 if(r[3]>50 || r[4]<1 || r[4]>8)return false;
                 s->grooves[i]=(NfGroove){r[3],r[4]};
             }
         }
+        if(length==NF_SETTINGS_BYTES) {
+            unsigned bits=get16(p+212+i*2);
+            NfTone t={(uint8_t)(bits&7u),(uint8_t)((bits>>3)&15u),(uint8_t)(((bits>>7)&3u)+1u),(uint8_t)(bits>>9)};
+            if(t.scale>=NF_SCALES || t.root>11 || t.slew>100)return false;s->tones[i]=t;
+        }
         for(unsigned f=0;f<NF_FIELDS;++f) {
             unsigned source,a,b;
-            if(length==NF_SETTINGS_BYTES) {
+            if(length==NF_SETTINGS_BYTES || length==NF_V6_SETTINGS_BYTES) {
                 unsigned bit=(i*NF_FIELDS+f)*18,at=64+bit/8,shift=bit&7u;
                 uint32_t v=((uint32_t)p[at]|((uint32_t)p[at+1]<<8)|((uint32_t)p[at+2]<<16))>>shift;
                 source=v&3u;a=(v>>2)&255u;b=(v>>10)&255u;
@@ -67,6 +72,9 @@ bool nf_settings_encode(const NfSettings *s,uint8_t *p) {
         NfGroove g=s->grooves[i];if(!g.ratchet)g=NF_GROOVE_DEFAULT;
         if(g.swing>50 || g.ratchet>8)return false;
         p[175+i*5]=g.swing;p[176+i*5]=g.ratchet;
+        NfTone t=s->tones[i];if(!t.range)t=NF_TONE_DEFAULT;
+        if(t.scale>=NF_SCALES || t.root>11 || t.range>4 || t.slew>100)return false;
+        put16(p+212+i*2,t.scale|((unsigned)t.root<<3)|((unsigned)(t.range-1u)<<7)|((unsigned)t.slew<<9));
         const NfConfig *c=&s->outputs[i];unsigned offset=16+i*6;
         p[offset]=c->ratio;p[offset+1]=c->shape;p[offset+2]=c->width;p[offset+3]=c->phase;p[offset+4]=c->level;p[offset+5]=c->offset;
         for(unsigned f=0;f<NF_FIELDS;++f) {

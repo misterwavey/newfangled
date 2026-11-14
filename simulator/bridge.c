@@ -152,3 +152,9 @@ uint32_t sim_groove(uint32_t channel,uint32_t item) {
     if(channel>=8)return 0;
     return item==0?ui.grooves[channel].swing:item==1?ui.grooves[channel].ratchet:item==2?nf_voice_ratchets(&app.voices[channel],app.step?app.step:app.clock.bpm):item==3?app.voices[channel].swing_odd:0;
 }
+
+uint32_t sim_pitch(uint32_t channel,uint32_t item) {
+    if(channel>=8)return 0;NfTone t=ui.tones[channel];
+    unsigned values[]={t.scale,t.root,t.range,t.slew*20u,app.clock.running && app.voices[channel].allowed?nf_voice_note(&app.voices[channel]):255,app.voices[channel].slew_remaining};
+    return item<6?values[item]:0;
+}

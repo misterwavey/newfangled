@@ -1,9 +1,10 @@
 # Pam’s Newfangled Workout
 
-Independent v0.6 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
+Independent v0.7 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
 (STM32F042K6T6). Eight outputs with clock ratios, gate/triangle/ramps/random,
 width, phase, level and offset, external clock/Run inputs, per-parameter CV routing, Euclidean rhythms, probability, repeatable random
-patterns, swing, gate ratchets and eight complete-patch preset slots. Boots
+patterns, swing, gate ratchets, random pitch quantization/slew and eight
+complete-patch preset slots. Boots
 stopped; Stop returns all outputs to zero.
 
 This repository contains only the Newfangled firmware, its source dependencies,
@@ -95,9 +96,9 @@ normal Newfangled application updates preserve them. See [presets and JSON backu
 - Hold the encoder on BPM VIEW to open source, PPQN, Run, CV input and PRESETS settings.
 - In PRESETS: choose SLOT, then SAVE or LOAD. Stop/disarm first. Power-on restores
   the last saved patch stopped.
-- Output parameters include CV SETUP/CV MON and STEPS, HITS, ROT, PROB, LOOP, SWING and RATCH;
-  see [CV controls](docs/cv.md), [rhythms/random patterns](docs/rhythms.md)
-  and [swing/ratchets](docs/groove.md).
+- Output parameters include CV SETUP/CV MON and STEPS, HITS, ROT, PROB, LOOP, SWING, RATCH, SLW, SCL, ROOT and OCTS;
+  see [CV controls](docs/cv.md), [rhythms/random patterns](docs/rhythms.md),
+  [swing/ratchets](docs/groove.md) and [random pitch/slew](docs/pitch.md).
 - Start arms/disarms playback. Hold the encoder and press Start to reset phase.
 - EXT waits for the incoming clock; Run GATE also requires the Run jack high.
   A lost external clock stops outputs and never silently falls back to INT.
@@ -132,8 +133,9 @@ With no saved patch, all routes default OFF. Calibration and assignments persist
 only after explicit SAVE. v0.4 physical preset storage needs the [bench pass](docs/presets.md#validation).
 No stock EEPROM settings or calibration are read or overwritten.
 The owner reports v0.5 works nicely on hardware (a general smoke test).
-v0.6 swing/ratchets have software coverage; their physical
-[bench checks](docs/groove.md#validation) remain pending.
+The owner reports ratchets work nicely on hardware.
+v0.7 pitch/slew have software coverage; physical [bench checks](docs/pitch.md#validation)
+and output-voltage calibration remain pending. Pitch uses a nominal 1 V/oct model.
 
 ## License and provenance
 

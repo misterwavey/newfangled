@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 #include "app.h"
 static void reset_voices(OriginalApp *a) {for(unsigned i=0;i<8;++i)nf_voice_reset(&a->voices[i],i);}
-static void values(OriginalApp *a) {
+static void values(OriginalApp *a,bool tick) {
     unsigned step=a->step?a->step:a->clock.bpm;
-    for(unsigned i=0;i<8;++i)a->output[i]=nf_voice_value(&a->voices[i],a->clock.running,step);
+    for(unsigned i=0;i<8;++i)a->output[i]=nf_voice_output(&a->voices[i],a->clock.running,step,tick);
 }
 static void cv_values(OriginalApp *a,unsigned manual_resets) {
     static const unsigned minimum[NF_FIELDS]={0,0,1,0,0,0};
@@ -67,7 +67,7 @@ void original_app_init(OriginalApp *a,uint8_t raw,uint32_t now) {
         a->base[i]=a->ui.outputs[i];a->voices[i].config=a->base[i];
         for(unsigned f=0;f<NF_FIELDS;++f)a->cv_plans[i][f]=(NfCvPlan){.config=a->ui.routes[i][f],.gain=NF_CV_Q};
     }
-    reset_voices(a);values(a);(void)original_app_refresh_ui(a);
+    reset_voices(a);values(a,false);(void)original_app_refresh_ui(a);
 }
 void original_app_sync(OriginalApp *a) {
     unsigned ppqn=nf_ppqn_values[a->ui.ppqn_index];
@@ -83,12 +83,12 @@ void original_app_sync(OriginalApp *a) {
     unsigned manual_resets=0;
     for(unsigned i=0;i<8;++i) {
         if(a->base[i].ratio!=a->ui.outputs[i].ratio && !a->ui.routes[i][0].source)manual_resets|=1u<<i;
-        a->base[i]=a->ui.outputs[i];nf_voice_rhythm(&a->voices[i],a->ui.rhythms[i]);nf_voice_groove(&a->voices[i],a->ui.grooves[i]);
+        a->base[i]=a->ui.outputs[i];nf_voice_rhythm(&a->voices[i],a->ui.rhythms[i]);nf_voice_groove(&a->voices[i],a->ui.grooves[i]);nf_voice_tone(&a->voices[i],a->ui.tones[i]);
         for(unsigned field=0;field<NF_FIELDS;++field)nf_cv_plan(&a->cv_plans[i][field],a->ui.routes[i][field]);
     }
     nf_cv_configure(&a->cv,a->ui.cv_swapped,a->ui.calibration);nf_cv_normalize(&a->cv);cv_values(a,manual_resets);
     for(unsigned i=0;i<8;++i)a->ui.effective[i]=a->voices[i].config;
-    transport(a);values(a);(void)original_app_refresh_ui(a);
+    transport(a);values(a,false);(void)original_app_refresh_ui(a);
 }
 void original_app_input(OriginalApp *a,unsigned kind,uint32_t us) {
     if(kind==NF_INPUT_CLOCK) {
@@ -123,6 +123,6 @@ void original_app_tick_at(OriginalApp *a,uint32_t now_us) {
     if(a->external && a->sync.locked)a->clock.bpm=nf_sync_bpm(&a->sync);
     a->step=step;original_clock_advance(&a->clock,step);
     if(a->clock.running)for(unsigned i=0;i<8;++i)nf_voice_advance(&a->voices[i],step);
-    values(a);
+    values(a,true);
 }
 void original_app_tick(OriginalApp *a) {original_app_tick_at(a,a->now_us+1000u);}

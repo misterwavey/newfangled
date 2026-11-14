@@ -15,7 +15,7 @@ typedef struct {
     bool editing,running,timing_fault;
     unsigned field;
     NfConfig outputs[8];
-    NfRhythm rhythms[8];NfGroove grooves[8];
+    NfRhythm rhythms[8];NfGroove grooves[8];NfTone tones[8];
     bool selecting,program_consumed;
     uint32_t program_at;
     bool external,active,run_high;

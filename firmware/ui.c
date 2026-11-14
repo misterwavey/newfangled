@@ -9,7 +9,7 @@ void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now) {
     *ui=(OriginalUi){.bpm=120,.previous=raw,.candidate=raw,.stable=raw,.changed_at=now,.ppqn_index=6,.calibration={{0,4095},{2048,4095}}};
     static const uint8_t ratios[8]={5,6,8,4,2,1,5,5};
     for(unsigned i=0;i<8;++i) {
-        ui->outputs[i]=(NfConfig){ratios[i],i==6?1:i==7?2:0,50,0,100,0};ui->effective[i]=ui->outputs[i];ui->rhythms[i]=NF_RHYTHM_DEFAULT;ui->grooves[i]=NF_GROOVE_DEFAULT;
+        ui->outputs[i]=(NfConfig){ratios[i],i==6?1:i==7?2:0,50,0,100,0};ui->effective[i]=ui->outputs[i];ui->rhythms[i]=NF_RHYTHM_DEFAULT;ui->grooves[i]=NF_GROOVE_DEFAULT;ui->tones[i]=NF_TONE_DEFAULT;
         for(unsigned field=0;field<NF_FIELDS;++field)ui->routes[i][field]=(NfCvRoute){0,100,0};
     }
 }
@@ -46,7 +46,11 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
             }
             dirty=true;
         } else if(ui->editing && ui->page) {
-            if(ui->field>=13) {
+            if(ui->field>=15) {
+                NfTone *t=&ui->tones[ui->page-1];uint8_t *p[]={&t->slew,&t->scale,&t->root,&t->range};
+                unsigned field=ui->field-15;int minimum=field==3?1:0,maximum=field==0?100:field==1?(int)NF_SCALES-1:field==2?11:4;
+                int value=(int)*p[field]+step;if(value>=minimum && value<=maximum){*p[field]=(uint8_t)value;dirty=true;}
+            } else if(ui->field>=13) {
                 NfGroove *g=&ui->grooves[ui->page-1];uint8_t *p=ui->field==13?&g->swing:&g->ratchet;
                 int value=(int)*p+step,minimum=ui->field==13?0:1,maximum=ui->field==13?50:8;
                 if(value>=minimum && value<=maximum){*p=(uint8_t)value;dirty=true;}
@@ -191,7 +195,7 @@ void original_ui_render(const OriginalUi *ui) {
             }
             return;
         }
-        original_text(14,0,"NEWFANGLED 0.6",1);
+        original_text(14,0,"NEWFANGLED 0.7",1);
         number(ui->external?ui->external_bpm:ui->bpm,value);original_text(0,10,ui->external && !ui->external_bpm?"---":value,2);original_text(43,15,"BPM",1);
         original_text(83,15,ui->editing?"EDIT":"VIEW",1);
         const char *status[]={"TURN OUT / CLICK BPM","EXT WAIT","EXT LOCK","EXT LOST","RUN LOW","EXT ARMED"};
@@ -212,6 +216,12 @@ void original_ui_render(const OriginalUi *ui) {
             else if(ui->cv_field==1) {const char *sources[]={"OFF","CV1","CV2"};x=original_text(0,18,"SRC ",2);original_text(x,18,sources[route.source],2);}
             else if(ui->cv_field<4) {x=original_text(0,18,ui->cv_field==2?"DEP ":"BIAS ",2);x=signed_value(x,18,ui->cv_field==2?route.depth:route.bias,2);original_text(x,18,"%",2);}
             else {parameter(&ui->effective[ui->page-1],ui->cv_target);}
+        } else if(field>=15) {
+            NfTone t=ui->tones[ui->page-1];unsigned x;
+            if(field==15) {x=original_text(0,18,"SLW ",2);number(t.slew*20u,value);x=original_text(x,18,value,2);original_text(x,18,"MS",2);}
+            else if(field==16) {x=original_text(0,18,"SCL ",2);original_text(x,18,nf_scale_names[t.scale],2);}
+            else if(field==17) {x=original_text(0,18,"ROOT ",2);original_text(x,18,nf_note_names[t.root],2);}
+            else {x=original_text(0,18,"OCTS ",2);number(t.range,value);original_text(x,18,value,2);}
         } else if(field>=13) {
             NfGroove g=ui->grooves[ui->page-1];unsigned x=original_text(0,18,field==13?"SWING ":"RATCH ",2);
             number(field==13?g.swing:g.ratchet,value);x=original_text(x,18,value,2);if(field==13)original_text(x,18,"%",2);

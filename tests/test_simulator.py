@@ -33,6 +33,7 @@ class SimulatorParity(unittest.TestCase):
             core.sim_output.argtypes=[ctypes.c_uint32];core.sim_output.restype=ctypes.c_uint32
             core.sim_get.argtypes=[ctypes.c_uint32];core.sim_get.restype=ctypes.c_uint32
             core.sim_cv_route.argtypes=[ctypes.c_uint32]*3;core.sim_cv_route.restype=ctypes.c_uint32
+            core.sim_pitch.argtypes=[ctypes.c_uint32]*2;core.sim_pitch.restype=ctypes.c_uint32
             core.sim_groove.argtypes=[ctypes.c_uint32]*2;core.sim_groove.restype=ctypes.c_uint32
             core.sim_rhythm.argtypes=[ctypes.c_uint32]*2;core.sim_rhythm.restype=ctypes.c_uint32
             core.sim_effective.argtypes=[ctypes.c_uint32]*2;core.sim_effective.restype=ctypes.c_uint32
@@ -58,8 +59,9 @@ class SimulatorParity(unittest.TestCase):
                             dict(type='turn',value=1),dict(type='click',value=1),dict(type='hold',value=0),
                             dict(type='click',value=1),dict(type='turn',value=1),dict(type='click',value=1),dict(type='reboot',value=0)]
             rhythm_actions=[dict(type='turn',value=1),dict(type='click',value=1)]+[dict(type='turn',value=1)]*8+[dict(type='click',value=1)]+[dict(type='turn',value=1)]*7+[dict(type='click',value=1),dict(type='turn',value=1),dict(type='click',value=1),dict(type='turn',value=1),dict(type='turn',value=1),dict(type='click',value=1),dict(type='hold',value=0),dict(type='click',value=0),dict(type='advance',value=8000),dict(type='reset',value=0)]
-            groove_actions=[dict(type='turn',value=1),dict(type='click',value=1),dict(type='turn',value=0),dict(type='click',value=1)]+[dict(type='turn',value=1)]*3+[dict(type='click',value=1),dict(type='turn',value=0),dict(type='click',value=1)]+[dict(type='turn',value=1)]*33+[dict(type='click',value=1),dict(type='hold',value=0),dict(type='click',value=0),dict(type='advance',value=10000),dict(type='reset',value=0)]
-            actions=groove_actions+rhythm_actions+preset_actions+cv_actions+actions
+            groove_actions=[dict(type='turn',value=1),dict(type='click',value=1)]+[dict(type='turn',value=0)]*5+[dict(type='click',value=1)]+[dict(type='turn',value=1)]*3+[dict(type='click',value=1),dict(type='turn',value=0),dict(type='click',value=1)]+[dict(type='turn',value=1)]*33+[dict(type='click',value=1),dict(type='hold',value=0),dict(type='click',value=0),dict(type='advance',value=10000),dict(type='reset',value=0)]
+            pitch_actions=[dict(type='turn',value=1),dict(type='click',value=1),dict(type='turn',value=1),dict(type='click',value=1)]+[dict(type='turn',value=1)]*4+[dict(type='click',value=1)]+[dict(type='turn',value=1)]*14+[dict(type='click',value=1)]+[dict(type='turn',value=1)]*10+[dict(type='click',value=1),dict(type='turn',value=1),dict(type='click',value=1)]+[dict(type='turn',value=1)]*2+[dict(type='click',value=1),dict(type='hold',value=0),dict(type='click',value=0),dict(type='advance',value=6000),dict(type='reset',value=0)]
+            actions=pitch_actions+groove_actions+rhythm_actions+preset_actions+cv_actions+actions
             for _ in range(600):
                 kind=rng.choice(['advance','advance','turn','click','input'])
                 action=dict(type=kind,value=rng.randrange(1000) if kind=='advance' else rng.randrange(2))
@@ -72,6 +74,6 @@ class SimulatorParity(unittest.TestCase):
                 kind=action['type'];name={'advance':'sim_advance','turn':'sim_turn','click':'sim_click','input':'sim_input','raw':'sim_raw','hold':'sim_hold_program','reset':'sim_reset','reboot':'sim_reboot'}[kind]
                 args=[] if kind in ['hold','reset','reboot'] else [action['index'],action['value']] if kind=='input' else [action['value']]
                 getattr(core,name)(*args)
-                fixtures.append(dict(action=action,grooves=[[core.sim_groove(i,k) for k in range(4)] for i in range(8)],rhythms=[[core.sim_rhythm(i,k) for k in range(8)] for i in range(8)],outputs=[core.sim_output(i) for i in range(8)],effective=[[core.sim_effective(i,f) for f in range(6)] for i in range(8)],routes=[[[core.sim_cv_route(i,f,k) for k in range(3)] for f in range(6)] for i in range(8)],state=[core.sim_get(i) for i in range(42)],edges=[[core.sim_edge_time(i),core.sim_edge_level(i)] for i in range(max(0,core.sim_edge_count()-2048),core.sim_edge_count())],framebuffer=base64.b64encode(ctypes.string_at(core.sim_framebuffer(),512)).decode()))
+                fixtures.append(dict(action=action,pitch=[[core.sim_pitch(i,k) for k in range(6)] for i in range(8)],grooves=[[core.sim_groove(i,k) for k in range(4)] for i in range(8)],rhythms=[[core.sim_rhythm(i,k) for k in range(8)] for i in range(8)],outputs=[core.sim_output(i) for i in range(8)],effective=[[core.sim_effective(i,f) for f in range(6)] for i in range(8)],routes=[[[core.sim_cv_route(i,f,k) for k in range(3)] for f in range(6)] for i in range(8)],state=[core.sim_get(i) for i in range(42)],edges=[[core.sim_edge_time(i),core.sim_edge_level(i)] for i in range(max(0,core.sim_edge_count()-2048),core.sim_edge_count())],framebuffer=base64.b64encode(ctypes.string_at(core.sim_framebuffer(),512)).decode()))
             path=Path(directory)/'fixtures.json';path.write_text(json.dumps(fixtures))
             subprocess.run([node,str(ROOT/'tests/simulator_wasm.mjs'),str(wasm),str(path)],check=True)

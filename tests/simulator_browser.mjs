@@ -117,7 +117,7 @@ const decision=sim.core.sim_rhythm(0,6);sim.perform({type:'advance',ms:Math.ceil
 assert.equal(sim.core.sim_rhythm(0,5),1);assert.equal(sim.core.sim_rhythm(0,6),decision);$('start').click();
 $('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
 $('reset').click();assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[8,3,1,50,1]);
-const rhythmBackup=plain(sim.exportPresets());assert.equal(rhythmBackup.version,3);assert.equal(rhythmBackup.slots[1].patch.outputs[0].rhythm.hits,3);
+const rhythmBackup=plain(sim.exportPresets());assert.equal(rhythmBackup.version,4);assert.equal(rhythmBackup.slots[1].patch.outputs[0].rhythm.hits,3);
 sim.replay(plain(sim.session()));assert.deepEqual(plain(sim.exportPresets()),rhythmBackup);
 // Old JSON imports retain pre-rhythm behavior without changing CV calibration.
 const legacy=plain(saved);legacy.version=1;legacy.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.rhythm));
@@ -136,3 +136,20 @@ assert.throws(()=>sim.importPresets(badGroove));assert.deepEqual(plain(sim.expor
 const v5=plain(rhythmBackup);v5.version=2;v5.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.groove));sim.importPresets(v5);
 assert.equal(sim.core.sim_groove(0,0),0);assert.equal(sim.core.sim_groove(0,1),1);assert.equal(sim.core.sim_rhythm(0,0),8);
 console.log('Swing/ratchets: controls, trace replay, presets, invalid input and v0.5 migration passed.');
+// Musical RANDOM output, glide, persistence and old-preset neutrality.
+$('right').click();$('encoder').click();setRhythmField(1,4);setRhythmField(15,10);setRhythmField(16,2);setRhythmField(17,1);setRhythmField(18,1);
+assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[2,1,2,200]);
+// Make all steps active so notes and glide are observable in this fixture.
+setRhythmField(9,5);setRhythmField(10,-1);setRhythmField(11,50);$('back').click();$('start').click();
+sim.perform({type:'advance',ms:500});assert(sim.core.sim_pitch(0,4)!==255);assert(sim.core.sim_pitch(0,5)>0);
+const pitchSession=plain(sim.session()),pitchState=plain(sim.state());sim.replay(pitchSession);assert.deepEqual(plain(sim.state()),pitchState);
+const milliseconds=sim.core.sim_get(0),remaining=sim.core.sim_pitch(0,5);$('export-presets').click();assert.equal(sim.core.sim_get(0),milliseconds);assert.equal(sim.core.sim_pitch(0,5),remaining);
+$('start').click();assert(sim.state().outputs.every(v=>v===0));assert.equal(sim.core.sim_pitch(0,4),255);
+$('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
+$('reset').click();assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[2,1,2,200]);
+const pitchBackup=plain(sim.exportPresets());assert.equal(pitchBackup.version,4);assert.deepEqual(pitchBackup.slots[1].patch.outputs[0].pitch,{scale:'MAJOR',root:'C#',octaves:2,slew_ms:200});
+const invalidPitch=plain(pitchBackup);invalidPitch.slots[1].patch.outputs[0].pitch.slew_ms=21;
+assert.throws(()=>sim.importPresets(invalidPitch));assert.deepEqual(plain(sim.exportPresets()),pitchBackup);
+const oldV6=plain(pitchBackup);oldV6.version=3;oldV6.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.pitch));sim.importPresets(oldV6);
+assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[0,0,1,0]);
+console.log('Pitch/slew controls, target notes, glide, Stop, preset replay and v0.6 migration passed.');

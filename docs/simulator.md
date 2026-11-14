@@ -1,4 +1,4 @@
-# Newfangled v0.6 desktop simulator
+# Newfangled v0.7 desktop simulator
 
 Run `make simulator-dev`, then open http://localhost:8765. Source changes rebuild
 and reload the page; no unzip step is needed. `make simulator` also produces an
@@ -24,12 +24,12 @@ engine. Hold Home in VIEW to select SRC EXT, matching PPQN and Run mode; see
 [synchronization](synchronization.md). CV1/CV2 sliders now drive per-parameter routes configured through CV SETUP.
 Use CV MON for raw and normalized input readings; see [CV routing](cv.md).
 
-Sessions record actions and a core hash for deterministic replay. The v0.6 session identifier intentionally rejects earlier navigation sessions
+Sessions record actions and a core hash for deterministic replay. The v0.7 session identifier intentionally rejects earlier navigation sessions
 because output navigation now includes rhythm parameters. The simulator does not model oscillator
 accuracy, SPI execution latency, DAC analog behavior or EEPROM.
 
 `make test-simulator` checks native C/WebAssembly state, all eight output values,
-framebuffers and output-change traces across 831 actions; independent timing
+framebuffers and output-change traces across 879 actions; independent timing
 oracles check baseline transport and trace bounds. Frontend tests use a minimal
 DOM/Canvas adapter and do not assert browser layout. `make test-firmware` checks portable UI, clock, CV and engine requirements. These
 tests do not emulate SPI or measure hardware latency.
@@ -49,3 +49,9 @@ SWING and RATCH appear after LOOP. Each scope shows swing and the effective /
 requested ratchet count. Non-gate shapes show one effective cycle; ratchets only
 affect gates. Fast swing cycles may have different effective pulse counts in
 the long and short steps. See [groove controls](groove.md).
+
+RANDOM outputs offer SLW, SCL, ROOT and OCTS after RATCH. Monitors show the
+target note when quantization is enabled and playback is active; during slew
+the current voltage lies between notes. C0 is the simulator’s relative zero-volt
+reference, not a claim about the oscillator receiving the CV. Scopes use the
+nominal 0–5 V output model, not measured hardware calibration. See [pitch](pitch.md).

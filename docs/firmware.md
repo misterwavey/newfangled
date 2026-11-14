@@ -1,4 +1,4 @@
-# Pam’s Newfangled Workout v0.6
+# Pam’s Newfangled Workout v0.7
 
 Eight independently configured unipolar outputs on ALM017 Rev 62. Boots stopped;
 Stop parks every output at zero. This is an early, independently authored application
@@ -125,3 +125,11 @@ SWING (0–50%) and RATCH (1–8) follow LOOP in each output menu. Swing stretch
 the first cycle of each pair and shortens the next; ratchets subdivide accepted
 GATE steps. See [controls, timing limits and examples](groove.md). Presets/JSON
 retain both settings and can load v0.4/v0.5 data with neutral defaults.
+
+## Musical RANDOM output — v0.7
+
+SLW (0–2000 ms), SCL, ROOT and OCTS follow RATCH. They apply to RANDOM
+outputs; gates/ratchets and other shapes retain their timing. Scale quantization
+is off by default. Pitch uses nominal 1 V/oct conversion, pending physical
+output calibration. See [random pitch and slew](pitch.md) for scales, control
+ordering, glide lifecycle, nominal tuning limits and bench checks.

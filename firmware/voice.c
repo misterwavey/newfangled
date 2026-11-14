@@ -6,6 +6,35 @@ const uint8_t nf_multipliers[NF_RATIOS]={1,1,1,1,1,1,2,3,4,8,16};
 const uint8_t nf_divisors[NF_RATIOS]={16,8,4,3,2,1,1,1,1,1,1};
 const char *const nf_ratio_names[NF_RATIOS]={"/16","/8","/4","/3","/2","X1","X2","X3","X4","X8","X16"};
 const char *const nf_shape_names[NF_SHAPES]={"GATE","TRIANGLE","RAMP UP","RAMP DOWN","RANDOM"};
+const char *const nf_scale_names[NF_SCALES]={"OFF","CHROM","MAJOR","MINOR","DORIAN","MAJPNT","MINPNT"};
+const char *const nf_note_names[12]={"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+/* Scale degrees relative to ROOT; no vendor lookup data. */
+static const uint16_t scales[NF_SCALES]={0,0xfff,
+    (1u<<0)|(1u<<2)|(1u<<4)|(1u<<5)|(1u<<7)|(1u<<9)|(1u<<11),
+    (1u<<0)|(1u<<2)|(1u<<3)|(1u<<5)|(1u<<7)|(1u<<8)|(1u<<10),
+    (1u<<0)|(1u<<2)|(1u<<3)|(1u<<5)|(1u<<7)|(1u<<9)|(1u<<10),
+    (1u<<0)|(1u<<2)|(1u<<4)|(1u<<7)|(1u<<9),
+    (1u<<0)|(1u<<3)|(1u<<5)|(1u<<7)|(1u<<10)};
+unsigned nf_pitch_note(NfTone tone,unsigned code) {
+    if(!tone.scale || tone.scale>=NF_SCALES || tone.root>11 || tone.range<1 || tone.range>4)return 255;
+    if(code>1023)code=1023;
+    unsigned maximum=tone.range*12u,desired=code*maximum,low=desired/1023u,high=(desired+1022u)/1023u;
+    uint16_t mask=scales[tone.scale];
+    while(low && !(mask&(1u<<(low%12u))))--low;
+    while(high<maximum && !(mask&(1u<<(high%12u))))++high;
+    unsigned note=desired-low*1023u<=high*1023u-desired?low:high;
+    return tone.root+note;
+}
+static unsigned random_level(const NfVoice *v) {
+    unsigned value=((v->random&1023u)*v->config.level+50u)/100u+(1023u*v->config.offset+50u)/100u;
+    return value>1023?1023:value;
+}
+unsigned nf_voice_note(const NfVoice *v) {return v->config.shape==4?nf_pitch_note(v->tone,random_level(v)):255;}
+void nf_voice_tone(NfVoice *v,NfTone tone) {
+    if(!tone.range)tone=NF_TONE_DEFAULT;
+    if(v->tone.scale==tone.scale && v->tone.root==tone.root && v->tone.range==tone.range && v->tone.slew==tone.slew)return;
+    v->tone=tone;v->slew_primed=false;v->slew_remaining=0;
+}
 static uint32_t period(const NfVoice *v) {return 60000u*nf_divisors[v->config.ratio];}
 static uint32_t cycle_span(const NfVoice *v) {
     uint32_t base=period(v),delay=600u*nf_divisors[v->config.ratio]*v->groove.swing;
@@ -34,11 +63,12 @@ static void decide(NfVoice *v) {
     v->allowed=(v->mask&(1u<<v->index)) && (v->rhythm.probability==100 || v->chance%100u<v->rhythm.probability);
 }
 static void restart(NfVoice *v) {
-    v->phase=0;v->swing_odd=false;v->index=0;v->random=v->seed;v->chance=v->seed^0xa511e9b3u;decide(v);
+    v->slew_primed=false;v->slew_remaining=0;v->phase=0;v->swing_odd=false;v->index=0;v->random=v->seed;v->chance=v->seed^0xa511e9b3u;decide(v);
 }
 void nf_voice_reset(NfVoice *v,unsigned channel) {
     if(!v->rhythm.steps)v->rhythm=NF_RHYTHM_DEFAULT;
     if(!v->groove.ratchet)v->groove=NF_GROOVE_DEFAULT;
+    if(!v->tone.range)v->tone=NF_TONE_DEFAULT;
     v->seed=0x9e3779b9u*(channel+1u);v->mask=nf_rhythm_mask(v->rhythm);restart(v);
 }
 void nf_voice_rhythm(NfVoice *v,NfRhythm r) {
@@ -91,5 +121,25 @@ uint16_t nf_voice_value(const NfVoice *v,bool running,unsigned bpm) {
     }
     }
     uint32_t value=(raw*v->config.level+50u)/100u+(1023u*v->config.offset+50u)/100u;
-    return (uint16_t)(value>1023u?1023u:value);
+    if(value>1023)value=1023;
+    if(v->config.shape==4 && v->tone.scale) {unsigned note=nf_pitch_note(v->tone,value);if(note!=255)value=(note*1023u+30u)/60u;}
+    return (uint16_t)value;
+}
+
+/* Only tick calls move the slew. Foreground refresh/configuration is timeless. */
+uint16_t nf_voice_output(NfVoice *v,bool running,unsigned bpm,bool tick) {
+    uint16_t target=nf_voice_value(v,running,bpm);
+    if(!running || !v->allowed || v->config.shape!=4 || !v->tone.slew) {
+        v->slew_primed=false;v->slew_remaining=0;v->slew_position=(int32_t)target*65536;return target;
+    }
+    if(!v->slew_primed) {
+        v->slew_primed=true;v->slew_target=target;v->slew_position=(int32_t)target*65536;v->slew_remaining=0;
+    } else if(target!=v->slew_target) {v->slew_target=target;v->slew_remaining=(uint16_t)(v->tone.slew*20u);}
+    if(tick && v->slew_remaining) {
+        int32_t difference=(int32_t)v->slew_target*65536-v->slew_position;
+        uint32_t amount=(uint32_t)(difference<0?-difference:difference)/v->slew_remaining;
+        v->slew_position+=difference<0?-(int32_t)amount:(int32_t)amount;
+        --v->slew_remaining;
+    }
+    return (uint16_t)((v->slew_position+32768)/65536);
 }
