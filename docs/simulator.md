@@ -1,4 +1,4 @@
-# Newfangled v0.3 desktop simulator
+# Newfangled v0.4 desktop simulator
 
 Run `make simulator-dev`, then open http://localhost:8765. Source changes rebuild
 and reload the page; no unzip step is needed. `make simulator` also produces an
@@ -24,12 +24,18 @@ engine. Hold Home in VIEW to select SRC EXT, matching PPQN and Run mode; see
 [synchronization](synchronization.md). CV1/CV2 sliders now drive per-parameter routes configured through CV SETUP.
 Use CV MON for raw and normalized input readings; see [CV routing](cv.md).
 
-Sessions record actions and a core hash for deterministic replay. The v0.3 session identifier intentionally rejects earlier navigation sessions
-because click/hold behavior has changed. The simulator does not model oscillator
+Sessions record actions and a core hash for deterministic replay. The v0.4 session identifier intentionally rejects earlier navigation sessions
+because the initial preset library is now part of each session. The simulator does not model oscillator
 accuracy, SPI execution latency, DAC analog behavior or EEPROM.
 
 `make test-simulator` checks native C/WebAssembly state, all eight output values,
-framebuffers and output-change traces across 745 actions; independent timing
+framebuffers and output-change traces across 755 actions; independent timing
 oracles check baseline transport and trace bounds. Frontend tests use a minimal
 DOM/Canvas adapter and do not assert browser layout. `make test-firmware` checks portable UI, clock, CV and engine requirements. These
 tests do not emulate SPI or measure hardware latency.
+
+Eight presets use the shared C journal in simulated flash. Browser local storage
+retains saved presets when available. Power cycle / reset session restores the
+last saved slot stopped; it does not erase presets. Export/import preset JSON
+works with [hardware backup tools](presets.md). Session files include their initial
+library; replay resets to that library before executing recorded actions.

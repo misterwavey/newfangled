@@ -6,6 +6,14 @@
 #include <stddef.h>
 #include "pnw_board.h"
 #include "app.h"
+#include "store.h"
+void *memcpy(void *,const void *,size_t);
+void *memset(void *,int,size_t);
+static NfStore presets;
+static uint8_t media[NF_STORE_BYTES],settings_buffer[NF_SETTINGS_BYTES];
+static bool media_read(void *c,unsigned at,void *p,unsigned n) {(void)c;if(at>sizeof media || n>sizeof media-at)return false;memcpy(p,media+at,n);return true;}
+static bool media_erase(void *c,unsigned bank) {(void)c;if(bank>1)return false;memset(media+bank*NF_BANK_BYTES,255,NF_BANK_BYTES);return true;}
+static bool media_program(void *c,unsigned at,const void *p,unsigned n) {(void)c;if(at>sizeof media || n>sizeof media-at)return false;const uint8_t *b=p;for(unsigned i=0;i<n;++i){if((media[at+i]&b[i])!=b[i])return false;media[at+i]=b[i];}return true;}
 static uint32_t now;
 static OriginalApp app;
 #define ui (app.ui)
@@ -33,10 +41,11 @@ void pnw_oled_pixel(unsigned x,unsigned y,bool on) {
     uint8_t mask=(uint8_t)(1u<<(y&7u));unsigned index=(y>>3)*128+x;
     if(on)framebuffer[index]|=mask;else framebuffer[index]&=(uint8_t)~mask;
 }
-void sim_reset(void) {
+void sim_reboot(void) {
     raw=15;now=0;cv[0]=0;cv[1]=2048;run=0;clock_enabled=0;clock_bpm=120;clock_ppqn=24;clock_phase=0;
-    generated_interval=0;edge_count=0;last_output=0;original_app_init(&app,raw,now);original_ui_render(&ui);
+    generated_interval=0;edge_count=0;last_output=0;original_app_init(&app,raw,now);NfStoreIo io={0,media_read,media_erase,media_program};(void)nf_store_open(&presets,io);(void)nf_presets_boot(&presets,&ui);original_app_sync(&app);original_ui_render(&ui);
 }
+void sim_reset(void) {memset(media,255,sizeof media);sim_reboot();}
 void sim_advance(uint32_t milliseconds) {
     for(uint32_t i=0;i<milliseconds;++i) {
         ++now;
@@ -53,6 +62,12 @@ void sim_advance(uint32_t milliseconds) {
         original_app_cv(&app,cv[0],cv[1],3);original_app_tick_at(&app,now*1000u);capture_gate();
         bool dirty=original_ui_update(&ui,raw,now);
         if(dirty) {original_app_sync(&app);capture_gate();}
+        if(ui.preset_command) {
+            bool disarmed=!app.requested && !app.clock.running;
+            (void)nf_presets_execute(&presets,&ui,disarmed);original_app_sync(&app);
+            if(disarmed) {nf_sync_init(&app.sync,app.ppqn);app.reset_input=false;if(run)original_app_input(&app,NF_INPUT_RUN_HIGH,now*1000u);}
+            dirty=true;
+        }
         dirty=original_app_refresh_ui(&app)||dirty;if(dirty)original_ui_render(&ui);
     }
 }
@@ -94,7 +109,9 @@ uint32_t sim_get(uint32_t index) {
     case 21:return ui.run_mode;case 22:return ui.sync_status;case 23:return ui.external_bpm;case 24:return app.sync.rejected;case 25:return ui.running;case 26:return ui.cv_menu;case 27:return ui.cv_monitor;
     case 28:return ui.cv_field;case 29:return ui.cv_target;case 30:return ui.cv_input;
     case 31:return (uint32_t)ui.cv_normalized[0];case 32:return (uint32_t)ui.cv_normalized[1];
-    case 33:return ui.cv_valid;case 34:return ui.cv_swapped;default:return 0;
+    case 33:return ui.cv_valid;case 34:return ui.cv_swapped;case 35:return ui.preset_menu;case 36:return ui.preset_slot;
+    case 37:return ui.preset_field;case 38:return ui.preset_status;case 39:return presets.mask;
+    case 40:return presets.last_slot;case 41:return presets.sequence;default:return 0;
     }
 }
 uintptr_t sim_framebuffer(void) {return (uintptr_t)framebuffer;}
@@ -112,4 +129,15 @@ uint32_t sim_effective(uint32_t channel,uint32_t field) {
     if(channel>=8 || field>=NF_FIELDS)return 0;
     const NfConfig *c=&app.voices[channel].config;
     unsigned values[]={c->ratio,c->shape,c->width,c->phase,c->level,c->offset};return values[field];
+}
+
+uintptr_t sim_settings_buffer(void) {return (uintptr_t)settings_buffer;}
+uint32_t sim_preset_read(uint32_t slot) {
+    NfSettings settings;NfStoreResult r=nf_store_load(&presets,slot,&settings);
+    return r==NF_STORE_OK && nf_settings_encode(&settings,settings_buffer)?0u:(uint32_t)(r?r:NF_STORE_INVALID);
+}
+uint32_t sim_preset_import(uint32_t slot) {
+    if(ui.running || ui.active || app.requested || app.clock.running)return NF_STORE_INVALID;
+    NfSettings settings;if(!nf_settings_decode(&settings,settings_buffer))return NF_STORE_INVALID;
+    NfStoreResult r=nf_store_save(&presets,slot,&settings);ui.preset_mask=presets.mask;return r;
 }

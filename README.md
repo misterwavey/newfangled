@@ -1,8 +1,8 @@
 # Pam’s Newfangled Workout
 
-Independent v0.3 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
+Independent v0.4 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
 (STM32F042K6T6). Eight outputs with clock ratios, gate/triangle/ramps/random,
-width, phase, level and offset, external clock/Run inputs, and per-parameter CV routing. Boots
+width, phase, level and offset, external clock/Run inputs, per-parameter CV routing and eight complete-patch preset slots. Boots
 stopped; Stop returns all outputs to zero.
 
 This repository contains only the Newfangled firmware, its source dependencies,
@@ -22,7 +22,8 @@ make newfangled
 ```
 
 Output: `build/newfangled/pnw.bin`, with ELF, map and build metadata alongside.
-The build checks the 32 KiB flash and 6 KiB RAM target limits, including 1 KiB
+The build reserves 24 KiB for the application and 8 KiB for presets, and checks
+the 6 KiB RAM target limit, including 1 KiB
 stack headroom. Set `PNW_CC` and `PNW_LD` to override compiler/linker paths.
 `CC` selects the host compiler used by the tests.
 
@@ -79,7 +80,8 @@ python3 tools/flash.py --write --serial YOUR_SERIAL --image build/newfangled/pnw
 
 Disconnect USB before reconnecting normal Eurorack power. This replaces application
 flash; the tool does not write option bytes. Keep a known-working restore image.
-The firmware does not use EEPROM, presets or expanders. See
+The firmware leaves external EEPROM untouched. Presets use reserved internal flash;
+normal Newfangled application updates preserve them. See [presets and JSON backup](docs/presets.md),
 [synchronization](docs/synchronization.md) and [CV routing/calibration](docs/cv.md).
 
 ## Controls
@@ -89,7 +91,9 @@ The firmware does not use EEPROM, presets or expanders. See
 - On an output: click to browse parameters, turn to select one, click to edit its
   value, turn to adjust, click to return to parameter selection.
 - Hold the encoder for half a second to return directly to output browsing.
-- Hold the encoder on BPM VIEW to open source, PPQN, Run and CV input settings.
+- Hold the encoder on BPM VIEW to open source, PPQN, Run, CV input and PRESETS settings.
+- In PRESETS: choose SLOT, then SAVE or LOAD. Stop/disarm first. Power-on restores
+  the last saved patch stopped.
 - Output parameter browsing includes CV SETUP and CV MON; see [CV controls](docs/cv.md).
 - Start arms/disarms playback. Hold the encoder and press Start to reset phase.
 - EXT waits for the incoming clock; Run GATE also requires the Run jack high.
@@ -106,6 +110,8 @@ defaults, abbreviations, timing limitations and the zero-output input diagnostic
 - `firmware/ui.c`, `font.c`: controls, display and original bitmap font.
 - `firmware/board.c`, `gate_bus.c`, `protocol.c`: peripheral and SPI/DAC handling.
 - `firmware/startup.c`, `runtime.c`, `divmod.S`, `stm32f042.ld`: MCU runtime/linker.
+- `firmware/settings.c`, `store.c`, `flash_store.c`: preset codec, journal and flash driver.
+- `tools/presets.py`: guarded DFU JSON preset export/import.
 - `tools/build.py`, `flash.py`: build and explicitly requested DFU writes.
 - `simulator/`: browser interface, WebAssembly bridge and output monitors.
 - `tools/build_simulator.py`, `serve_simulator.py`: offline build and live development.
@@ -119,8 +125,9 @@ See the [validation record](docs/validation.json) and
 [remaining bench checks](docs/synchronization.md#bench-acceptance-and-confirmed-results).
 Other PPQN settings have software coverage; calibrated hardware timing remains unmeasured.
 v0.3 CV input sampling/routing needs the [mapping and calibration bench pass](docs/cv.md#jack-mapping-and-calibration--bench-verification-needed).
-All routes default OFF. Input calibration and assignments are volatile; no stock
-EEPROM settings or calibration are read or overwritten.
+With no saved patch, all routes default OFF. Calibration and assignments persist
+only after explicit SAVE. v0.4 physical preset storage needs the [bench pass](docs/presets.md#validation).
+No stock EEPROM settings or calibration are read or overwritten.
 
 ## License and provenance
 

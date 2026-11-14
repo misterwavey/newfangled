@@ -15,8 +15,8 @@ void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now) {
 }
 static bool hold_program(OriginalUi *ui) {
     ui->program_consumed=true;
-    if(ui->editing || ui->selecting || ui->cv_menu || ui->cv_monitor) {
-        ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;return true;
+    if(ui->editing || ui->selecting || ui->cv_menu || ui->cv_monitor || ui->preset_menu) {
+        ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;ui->preset_menu=false;return true;
     }
     if(!ui->page) {ui->selecting=true;ui->field=0;return true;}
     return false;
@@ -30,7 +30,11 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
     ui->previous=raw;
     if(ui->encoder>=4 || ui->encoder<=-4) {
         int step=ui->encoder>0?1:-1;ui->encoder=0;
-        if(ui->cv_monitor) {ui->cv_input^=1u;dirty=true;}
+        if(ui->preset_menu) {
+            if(ui->editing) {int slot=(int)ui->preset_slot+step;if(slot>=0 && slot<8)ui->preset_slot=(uint8_t)slot;}
+            else ui->preset_field=(uint8_t)(((int)ui->preset_field+step+3)%3);
+            ui->preset_status=NF_PRESET_IDLE;dirty=true;
+        } else if(ui->cv_monitor) {ui->cv_input^=1u;dirty=true;}
         else if(ui->cv_menu) {
             if(!ui->editing)ui->cv_field=(uint8_t)(((int)ui->cv_field+step+(int)NF_CV_CONTROLS)%NF_CV_CONTROLS);
             else {
@@ -71,13 +75,17 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
         if(program) {ui->program_at=now;ui->program_consumed=false;}
         if(start) {
             if(!(raw&4u)) {
-                ++ui->reset_count;ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;ui->program_consumed=true;
+                ++ui->reset_count;ui->editing=false;ui->selecting=false;ui->cv_menu=false;ui->cv_monitor=false;ui->preset_menu=false;ui->program_consumed=true;
             } else ui->running=!ui->running;
             dirty=true;
         }
         if(released && !ui->program_consumed) {
             if((uint32_t)(now-ui->program_at)>=500u) {
                 (void)hold_program(ui);
+            } else if(ui->preset_menu) {
+                if(!ui->preset_field)ui->editing=!ui->editing;
+                else if(ui->running || ui->active)ui->preset_status=NF_PRESET_STOP;
+                else {ui->preset_command=ui->preset_field==1?NF_PRESET_SAVE:NF_PRESET_LOAD;ui->preset_status=NF_PRESET_BUSY;ui->editing=false;}
             } else if(ui->cv_monitor)ui->cv_input^=1u;
             else if(ui->cv_menu) {if(ui->cv_field<4)ui->editing=!ui->editing;}
             else if(ui->page) {
@@ -87,6 +95,7 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
                 else {ui->cv_monitor=true;ui->editing=false;}
             } else if(ui->selecting) {
                 if(ui->field==3) {ui->cv_monitor=true;ui->editing=false;}
+                else if(ui->field==9) {ui->preset_menu=true;ui->preset_field=0;ui->editing=false;ui->preset_status=NF_PRESET_IDLE;}
                 else if(ui->field>=5) {
                     unsigned input=(ui->field-5u)/2u;
                     if(ui->cv_raw_valid&(1u<<input)) {
@@ -130,6 +139,15 @@ static void transport_icon(unsigned x,bool running) {
 }
 void original_ui_render(const OriginalUi *ui) {
     char value[6];pnw_oled_clear();
+    if(ui->preset_menu) {
+        transport_icon(0,ui->active);original_text(14,0,"MEM",2);
+        original_text(76,0,ui->editing?"EDIT":"SELECT",1);
+        const char *status[]={"","BUSY","SAVED","LOADED","EMPTY","STOP FIRST","BAD DATA","I/O ERROR","NEWER DATA"};
+        unsigned state=ui->preset_status;
+        original_text(64,8,state<9 && state?status[state]:(ui->preset_mask&(1u<<ui->preset_slot))?"STORED":"EMPTY",1);
+        const char *labels[]={"SLOT ","SAVE ","LOAD "};unsigned x=original_text(0,18,labels[ui->preset_field],2);
+        number(ui->preset_slot+1u,value);original_text(x,18,value,2);return;
+    }
     if(ui->cv_monitor) {
         if(ui->page) {original_text(0,0,"OUT",2);number(ui->page,value);original_text(40,0,value,2);transport_icon(119,ui->active);}
         else {transport_icon(0,ui->active);original_text(14,0,"CV",2);}
@@ -145,12 +163,13 @@ void original_ui_render(const OriginalUi *ui) {
     if(!ui->page) {
         transport_icon(0,ui->active);
         if(ui->selecting) {
-            original_text(14,0,"SET",2);original_text(76,0,ui->field>=5?"CAPTURE":ui->editing?"EDIT":"SELECT",1);
+            original_text(14,0,"SET",2);original_text(76,0,ui->field>=5 && ui->field<9?"CAPTURE":ui->editing?"EDIT":"SELECT",1);
             if(ui->field==0) {unsigned x=original_text(0,18,"SRC ",2);original_text(x,18,ui->external?"EXT":"INT",2);}
             else if(ui->field==1) {unsigned x=original_text(0,18,"PPQN ",2);number(nf_ppqn_values[ui->ppqn_index],value);original_text(x,18,value,2);}
             else if(ui->field==2) {const char *modes[]={"OFF","GATE","RESET"};unsigned x=original_text(0,18,"RUN ",2);original_text(x,18,modes[ui->run_mode],2);}
             else if(ui->field==3)original_text(0,18,"CV MON",2);
             else if(ui->field==4) {unsigned x=original_text(0,18,"SWAP ",2);original_text(x,18,ui->cv_swapped?"ON":"OFF",2);}
+            else if(ui->field==9)original_text(0,18,"PRESETS",2);
             else {
                 unsigned input=(ui->field-5u)/2u;bool zero=(ui->field&1u)!=0;
                 unsigned x=original_text(0,18,input?(zero?"C2 0V ":"C2 +5 "):(zero?"C1 0V ":"C1 +5 "),2);
@@ -158,7 +177,7 @@ void original_ui_render(const OriginalUi *ui) {
             }
             return;
         }
-        original_text(14,0,"NEWFANGLED 0.3",1);
+        original_text(14,0,"NEWFANGLED 0.4",1);
         number(ui->external?ui->external_bpm:ui->bpm,value);original_text(0,10,ui->external && !ui->external_bpm?"---":value,2);original_text(43,15,"BPM",1);
         original_text(83,15,ui->editing?"EDIT":"VIEW",1);
         const char *status[]={"TURN OUT / CLICK BPM","EXT WAIT","EXT LOCK","EXT LOST","RUN LOW","EXT ARMED"};

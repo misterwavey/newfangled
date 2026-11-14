@@ -1,4 +1,4 @@
-# Pam’s Newfangled Workout v0.3
+# Pam’s Newfangled Workout v0.4
 
 Eight independently configured unipolar outputs on ALM017 Rev 62. Boots stopped;
 Stop parks every output at zero. This is an early, independently authored application
@@ -14,7 +14,7 @@ using the existing board SDK. No stock binary is needed to build it.
 - Gate width: 1–99%; phase: 0–99%; level and positive offset: 0–100%.
 - Nominal voltage range: 0–5 V; level plus offset clips at full scale.
 - Independent CV1/CV2 routing, signed depth and bias for each output parameter;
-  raw input monitor, mapping swap and volatile 0 V/+5 V calibration. See [CV guide](cv.md).
+  raw input monitor, mapping swap and 0 V/+5 V calibration (persisted with an explicit preset SAVE). See [CV guide](cv.md).
 - Portable C engine, UI and manually authored font shared with the included browser simulator.
 
 Defaults: OUT1 ×1 gate; OUT2 ×2 gate; OUT3 ×4 gate; OUT4 ÷2 gate;
@@ -54,9 +54,10 @@ python3 tools/flash.py --write --serial FFFFFFFEFFFF --image build/newfangled/pn
 ```
 
 Flash with USB only and Eurorack power/expanders disconnected. Disconnect USB,
-then reconnect normal Eurorack power to test. The build checks the 32 KiB flash
-and 6 KiB RAM limits, reserving 1 KiB for stack. No EEPROM operations are linked.
-No presets, MIDI or expander output in v0.3. CV assignments and calibration are RAM-only.
+then reconnect normal Eurorack power to test. The build reserves 24 KiB application flash and 8 KiB preset flash, and checks the
+6 KiB RAM limit, reserving 1 KiB for stack. No EEPROM operations are linked.
+Eight full-patch presets use internal flash; see [Save/Load and backups](presets.md).
+MIDI and expander output are not implemented. Unsaved CV assignments/calibration are RAM-only.
 
 ## Timing and hardware acceptance
 

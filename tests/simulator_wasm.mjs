@@ -10,11 +10,12 @@ function apply(action) {
   if(action.type==='raw')core.sim_raw(action.value);
   if(action.type==='hold')core.sim_hold_program();
   if(action.type==='reset')core.sim_reset();
+  if(action.type==='reboot')core.sim_reboot();
 }
 core.sim_reset();
 for(const [index,fixture] of scenarios.entries()) {
   apply(fixture.action);
-  assert.deepEqual(Array.from({length:35},(_,i)=>core.sim_get(i)>>>0),fixture.state,`state ${index}`);
+  assert.deepEqual(Array.from({length:42},(_,i)=>core.sim_get(i)>>>0),fixture.state,`state ${index}`);
   assert.deepEqual(Array.from({length:8},(_,i)=>core.sim_output(i)),fixture.outputs,`outputs ${index}`);
   assert.deepEqual(Array.from({length:8},(_,i)=>Array.from({length:6},(_,f)=>core.sim_effective(i,f))),fixture.effective,`effective ${index}`);
   assert.deepEqual(Array.from({length:8},(_,i)=>Array.from({length:6},(_,f)=>Array.from({length:3},(_,k)=>core.sim_cv_route(i,f,k)>>>0))),fixture.routes,`routes ${index}`);

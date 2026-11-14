@@ -6,6 +6,7 @@
 #include "voice.h"
 #include "sync.h"
 #include "cv.h"
+#include "preset_format.h"
 typedef struct {
     unsigned bpm,page;
     int encoder;
@@ -25,6 +26,8 @@ typedef struct {
     uint16_t cv_raw[2];int32_t cv_normalized[2];
     uint8_t cv_valid,cv_raw_valid,cv_field,cv_target,cv_input;
     bool cv_menu,cv_monitor,cv_swapped;
+    bool preset_menu;
+    uint8_t preset_slot,preset_field,preset_command,preset_status,preset_mask;
 } OriginalUi;
 void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now);
 bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now);

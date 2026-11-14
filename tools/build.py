@@ -25,8 +25,8 @@ def binary_from_elf(data):
     segments=[]
     for i in range(phnum):
         typ,off,va,pa,size,mem,flags,align=struct.unpack_from('<IIIIIIII',data,phoff+i*phsize)
-        if typ==1 and size and 0x08000000<=pa<0x08008000:
-            if off+size>len(data) or pa+size>0x08008000: raise ValueError('invalid load segment')
+        if typ==1 and size and 0x08000000<=pa<0x08006000:
+            if off+size>len(data) or pa+size>0x08006000: raise ValueError('invalid load segment')
             segments.append((pa,data[off:off+size]))
     if not segments: raise ValueError('no flash load segments')
     result=bytearray(b'\xff'*(max(a+len(b) for a,b in segments)-0x08000000))
@@ -34,9 +34,9 @@ def binary_from_elf(data):
     return bytes(result)
 
 ROOT=Path(__file__).resolve().parents[1]
-SOURCES=['firmware/startup.c','firmware/board.c','firmware/gate_bus.c','firmware/runtime.c','firmware/divmod.S',
-         'firmware/protocol.c','firmware/font.c','firmware/ui.c','firmware/clock.c','firmware/app.c','firmware/cv.c','firmware/sync.c','firmware/voice.c','firmware/main.c']
-INPUTS=SOURCES+['firmware/stm32f042.ld','include/pnw_board.h','firmware/font.h','firmware/ui.h','firmware/clock.h','firmware/app.h','firmware/cv.h','firmware/sync.h','firmware/voice.h','firmware/gate_bus.h','docs/validation.json']
+SOURCES=['firmware/startup.c','firmware/board.c','firmware/flash_store.c','firmware/gate_bus.c','firmware/runtime.c','firmware/divmod.S',
+         'firmware/protocol.c','firmware/font.c','firmware/ui.c','firmware/clock.c','firmware/app.c','firmware/settings.c','firmware/store.c','firmware/cv.c','firmware/sync.c','firmware/voice.c','firmware/main.c']
+INPUTS=SOURCES+['firmware/stm32f042.ld','include/pnw_board.h','firmware/font.h','firmware/ui.h','firmware/clock.h','firmware/app.h','firmware/settings.h','firmware/store.h','firmware/preset_format.h','firmware/cv.h','firmware/sync.h','firmware/voice.h','firmware/gate_bus.h','docs/validation.json']
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--inputs',action='store_true',help='Build zero-output physical input monitor')
@@ -55,8 +55,9 @@ def main():
         raise ValueError('unexpected recovered code, storage operations or legacy numeral renderer linked')
     (out/'pnw.bin').write_bytes(data)
     validation=json.loads((ROOT/'docs/validation.json').read_text())
+    if len(data)>24576:raise ValueError('application overlaps preset flash')
     tested=not args.inputs and hashlib.sha256(data).hexdigest()==validation['image_sha256']
-    report=dict(application=('Newfangled physical input monitor; all outputs zero' if args.inputs else 'Pam’s Newfangled Workout v0.3: eight outputs, ratios and waveforms'),flash_bytes=len(data),
+    report=dict(application=('Newfangled physical input monitor; all outputs zero' if args.inputs else 'Pam’s Newfangled Workout v0.4: eight outputs, ratios and waveforms'),flash_bytes=len(data),application_limit_bytes=24576,preset_slots=8,preset_storage="internal flash 0x08006000..0x08007fff",
                 sha256=hashlib.sha256(data).hexdigest(),hardware_tested=tested,hardware_validation=validation if tested else None,stock_binary_required=False,
                 inputs={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in INPUTS},
                 font_origin='Manually authored 5x7 row glyphs in firmware/font.c',

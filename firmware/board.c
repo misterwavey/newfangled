@@ -31,6 +31,11 @@ bool pnw_input_take(uint32_t *kind,uint32_t *us) {
     if(ready) {*kind=input_events[input_tail].kind;*us=input_events[input_tail].us;input_tail=(input_tail+1u)&15u;}
     pnw_interrupt_restore(saved);return ready;
 }
+void pnw_inputs_discard(void) {
+    uint32_t saved=pnw_interrupt_lock();input_tail=input_head;
+    REG(0x40010414u)=(1u<<8)|(1u<<10);
+    input_push(pnw_run_input()?2u:3u,pnw_micros());pnw_interrupt_restore(saved);
+}
 void EXTI4_15_IRQHandler(void) {
     uint32_t pending=REG(0x40010414u)&((1u<<8)|(1u<<10));
     uint32_t us=pnw_micros();REG(0x40010414u)=pending;

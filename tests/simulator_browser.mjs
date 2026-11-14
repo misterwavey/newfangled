@@ -12,13 +12,14 @@ class Element {
   querySelector(selector){return this.nodes[selector]??=(new Element(selector==='canvas'?'canvas':'b'));}
   getContext(){return this.context??={createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData:image=>{this.lastImage=image;},clearRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){}};}
 }
+const local=new Map(),localStorage={getItem:k=>local.get(k)??null,setItem:(k,v)=>local.set(k,v)};
 const elements=new Map(),document={body:new Element('body'),activeElement:new Element('body'),listeners:{},getElementById(id){if(!elements.has(id))elements.set(id,new Element());return elements.get(id);},createElement:tag=>new Element(tag),addEventListener(name,callback){this.listeners[name]=callback;}};
 const $=id=>document.getElementById(id);const frames=[];
 $('speed').value='1';const window={};
 const html=fs.readFileSync('build/simulator/index.html','utf8');
 assert(!html.includes('__WASM_BASE64__'));assert(!html.includes('src="http'));assert(!html.includes('<link'));
 const script=html.match(/<script>([\s\S]*)<\/script>/)[1];
-vm.runInNewContext(script,{document,window,WebAssembly,Uint8Array,Uint8ClampedArray,atob,performance:{now:()=>0},requestAnimationFrame:callback=>frames.push(callback),setTimeout,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Blob,console});
+vm.runInNewContext(script,{localStorage,document,window,WebAssembly,Uint8Array,Uint8ClampedArray,atob,performance:{now:()=>0},requestAnimationFrame:callback=>frames.push(callback),setTimeout,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},Blob,console});
 for(let i=0;i<1000 && !document.body.dataset.ready && !document.body.dataset.error;i++)await new Promise(resolve=>setTimeout(resolve,5));
 assert.equal(document.body.dataset.error,undefined);assert.equal(document.body.dataset.ready,'true');
 const sim=window.pnwSimulator,plain=value=>JSON.parse(JSON.stringify(value));
@@ -78,3 +79,31 @@ assert.equal(sim.core.sim_effective(0,4),100);
 $('cv0').value='0';$('cv0').oninput({target:$('cv0')});sim.perform({type:'advance',ms:250});
 assert.equal(sim.core.sim_effective(0,4),0);assert.equal(sim.core.sim_cv_route(0,4,0),1);
 console.log('Offline page: controls, clock/CV inputs, pause/step, seeded replay, framebuffer and invalid-session checks passed.');
+
+// Preset operations use hardware gestures; Save while armed is refused.
+// Start with a fresh UI while preserving the empty library.
+$('reset').click();
+$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.state().bpm,121);
+$('back').click();$('left').click();$('encoder').click();assert.equal(sim.core.sim_get(35),1);
+$('right').click();$('start').click();$('encoder').click();assert.equal(sim.core.sim_get(38),5);assert.equal(sim.core.sim_get(39),0);
+$('start').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);assert.equal(sim.core.sim_get(39),1);
+const saved=plain(sim.exportPresets());assert.equal(saved.slots[0].patch.tempo_bpm,121);assert.equal(saved.boot_slot,1);
+assert.equal(JSON.parse(local.get('newfangled-presets-v1')).slots[0].patch.tempo_bpm,121);
+$('back').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.state().bpm,122);
+$('reset').click();assert.equal(sim.state().bpm,121);assert.equal(sim.state().armed,false);
+// JSON round-trips all CV routes/calibration and slot identities.
+const imported=plain(saved);imported.boot_slot=8;imported.slots[0].slot=8;imported.slots[0].patch.tempo_bpm=179;
+imported.slots[0].patch.calibration[1]={zero:2000,positive_5v:120};imported.slots[0].patch.outputs[7].cv.offset={source:'CV2',depth:-79,bias:51};
+sim.importPresets(imported);assert.equal(sim.state().bpm,179);assert.equal(sim.core.sim_get(39),129);
+assert.equal(sim.core.sim_cv_route(7,5,0),2);assert.equal(sim.core.sim_cv_route(7,5,1)|0,-79);
+const backed=plain(sim.exportPresets());assert.deepEqual(backed.slots[1],imported.slots[0]);
+const replayed=plain(sim.session());sim.replay(replayed);assert.deepEqual(plain(sim.exportPresets()),backed);
+const invalid=plain(imported);invalid.slots[0].patch.tempo_bpm=70000;
+assert.throws(()=>sim.importPresets(invalid));assert.deepEqual(plain(sim.exportPresets()),backed);
+$('start').click();assert.throws(()=>sim.importPresets(imported));$('start').click();
+// Load SLOT 1 without changing boot SLOT 8. Holding exits directly.
+$('back').click();$('left').click();$('encoder').click();$('encoder').click();
+for(let i=0;i<7;i++)$('left').click();$('encoder').click();$('right').click();$('right').click();$('encoder').click();
+assert.equal(sim.core.sim_get(38),3);assert.equal(sim.state().bpm,121);assert.equal(sim.state().armed,false);
+$('reset').click();assert.equal(sim.state().bpm,179);
+console.log('Presets: stopped-only Save/Load, power-cycle, JSON validation, CV/calibration, session replay and local persistence passed.');

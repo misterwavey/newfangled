@@ -23,9 +23,15 @@ void pnw_gate_request(bool high);
  * request: one scheduled sample per tick; control: intentional immediate edit.
  * Only an undelivered scheduled sample at the next sample counts as an overrun. */
 void pnw_outputs_request(const uint16_t codes[8]);
-void pnw_outputs_control(const uint16_t codes[8]); /* output 1 only; post desired level */
+void pnw_outputs_control(const uint16_t codes[8]); /* immediate eight-channel control update */
 void pnw_gate_service(void); /* nonblocking if foreground owns SPI */
 uint32_t pnw_gate_overruns(void);
+/* Preset callbacks are range-restricted to the final 8 KiB of internal flash.
+ * Call only while disarmed/stopped; erase/program intentionally stall synthesis. */
+bool pnw_preset_read(void *context,unsigned offset,void *data,unsigned length);
+bool pnw_preset_erase(void *context,unsigned bank);
+bool pnw_preset_program(void *context,unsigned offset,const void *data,unsigned length);
+void pnw_inputs_discard(void);
 void pnw_tick_hook(void); /* weak, called once per 1 ms interrupt */
 void pnw_oled_clear(void);
 void pnw_oled_pixel(unsigned x, unsigned y, bool on);

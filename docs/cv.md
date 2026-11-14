@@ -87,8 +87,9 @@ Capture uses the latest raw reading; the displayed calibration number is the
 stored endpoint, not a continuously changing input. A span below 64 ADC counts
 is rejected to avoid extreme gain/noise amplification. ADC readings must be valid
 before a capture will take effect. Use a held gate/DC source, not a running clock,
-for the reference levels. Calibration and all routes are RAM-only and reset on
-power cycling; saving settings is a later milestone.
+for the reference levels. In v0.4, calibration and routes persist when you explicitly SAVE a preset.
+Unsaved changes are lost on power cycling. Loading a slot also restores that
+slot’s calibration; see [presets](presets.md).
 
 Nominal starting endpoints are CV1 zero=0/+5=4095, CV2 zero=2048/+5=4095.
 In the simulator, these match the idealized sliders. Swapping inputs or changing

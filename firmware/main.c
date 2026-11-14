@@ -1,13 +1,15 @@
 /* SPDX-License-Identifier: MIT
- * Eight-output v0.3 application. The interrupt owns clock advancement; the
- * foreground owns UI/rendering. No EEPROM operations. External clock/Run edges are captured by EXTI.
+ * Eight-output v0.4 application. The interrupt owns clock advancement; the
+ * foreground owns UI/rendering. No EEPROM operations; explicit stopped-only presets use reserved internal flash. External clock/Run edges are captured by EXTI.
  */
 #include "pnw_board.h"
 #include "app.h"
+#include "store.h"
 #ifdef PNW_INPUT_DIAGNOSTICS
 #include "font.h"
 #endif
 static OriginalApp app;
+static NfStore presets;
 static volatile bool initialized;
 static void publish_gate(void) {
     pnw_outputs_request(app.output);
@@ -38,7 +40,10 @@ int main(void) {
     }
 #endif
     uint32_t saved=pnw_interrupt_lock();
-    original_app_init(&app,pnw_controls_raw(),pnw_millis());initialized=true;
+    original_app_init(&app,pnw_controls_raw(),pnw_millis());pnw_interrupt_restore(saved);
+    NfStoreIo io={0,pnw_preset_read,pnw_preset_erase,pnw_preset_program};
+    (void)nf_store_open(&presets,io);(void)nf_presets_boot(&presets,&app.ui);
+    saved=pnw_interrupt_lock();original_app_sync(&app);pnw_inputs_discard();initialized=true;
     pnw_outputs_request(app.output);pnw_interrupt_restore(saved);pnw_gate_service();
     original_ui_render(&app.ui);pnw_oled_flush();
     unsigned page=4;
@@ -50,6 +55,15 @@ int main(void) {
         if(dirty) {
             saved=pnw_interrupt_lock();original_app_sync(&app);pnw_outputs_control(app.output);pnw_interrupt_restore(saved);
             pnw_gate_service();original_ui_render(&app.ui);page=0;
+        }
+        if(app.ui.preset_command) {
+            pnw_oled_flush();pnw_gate_service();
+            saved=pnw_interrupt_lock();bool disarmed=!app.requested && !app.clock.running;pnw_interrupt_restore(saved);
+            (void)nf_presets_execute(&presets,&app.ui,disarmed);
+            saved=pnw_interrupt_lock();original_app_sync(&app);
+            if(disarmed) {nf_sync_init(&app.sync,app.ppqn);app.reset_input=false;pnw_inputs_discard();}
+            pnw_outputs_control(app.output);pnw_interrupt_restore(saved);pnw_gate_service();
+            original_ui_render(&app.ui);page=0;
         }
         if(page<4)pnw_oled_flush_page(page++);
     }
