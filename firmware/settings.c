@@ -5,18 +5,20 @@
 static void put16(uint8_t *p,unsigned value) {p[0]=(uint8_t)value;p[1]=(uint8_t)(value>>8);}
 static unsigned get16(const uint8_t *p) {return p[0]|((unsigned)p[1]<<8);}
 void nf_settings_capture(const OriginalUi *u,NfSettings *s) {
-    s->bpm=(uint16_t)u->bpm;s->external=u->external;s->ppqn_index=u->ppqn_index;s->run_mode=u->run_mode;s->swapped=u->cv_swapped;
+    s->bpm=(uint16_t)u->bpm;s->external=u->external;s->ppqn_index=u->ppqn_index;s->run_mode=u->run_mode;s->swapped=u->cv_swapped;s->muted=u->muted;
     for(unsigned i=0;i<2;++i)s->calibration[i]=u->calibration[i];
     for(unsigned i=0;i<8;++i) {s->outputs[i]=u->outputs[i];s->rhythms[i]=u->rhythms[i];s->grooves[i]=u->grooves[i];s->tones[i]=u->tones[i];for(unsigned f=0;f<NF_FIELDS;++f)s->routes[i][f]=u->routes[i][f];}
 }
 void nf_settings_apply(OriginalUi *u,const NfSettings *s) {
-    u->bpm=s->bpm;u->external=s->external!=0;u->ppqn_index=s->ppqn_index;u->run_mode=s->run_mode;u->cv_swapped=s->swapped!=0;
+    u->bpm=s->bpm;u->external=s->external!=0;u->ppqn_index=s->ppqn_index;u->run_mode=s->run_mode;u->cv_swapped=s->swapped!=0;u->muted=s->muted;
     for(unsigned i=0;i<2;++i)u->calibration[i]=s->calibration[i];
     for(unsigned i=0;i<8;++i) {u->outputs[i]=s->outputs[i];u->rhythms[i]=s->rhythms[i];u->grooves[i]=s->grooves[i];u->tones[i]=s->tones[i];for(unsigned f=0;f<NF_FIELDS;++f)u->routes[i][f]=s->routes[i][f];}
     u->running=false;u->active=false;u->editing=false;++u->reset_count;
 }
 bool nf_settings_decode_size(NfSettings *s,const uint8_t *p,unsigned length) {
-    if(length!=NF_SETTINGS_BYTES && length!=NF_LEGACY_SETTINGS_BYTES && length!=NF_V5_SETTINGS_BYTES && length!=NF_V6_SETTINGS_BYTES)return false;
+    if(length!=NF_SETTINGS_BYTES && length!=NF_LEGACY_SETTINGS_BYTES && length!=NF_V5_SETTINGS_BYTES && length!=NF_V6_SETTINGS_BYTES && length!=NF_V7_SETTINGS_BYTES)return false;
+    if(length==NF_SETTINGS_BYTES && p[229])return false;
+    s->muted=length==NF_SETTINGS_BYTES?p[228]:0;
     unsigned bpm=get16(p);
     if(bpm<10 || bpm>300 || p[2]>1 || p[3]>=NF_PPQN_COUNT || p[4]>NF_RUN_RESET || p[5]>1 || p[6] || p[7])return false;
     s->bpm=(uint16_t)bpm;s->external=p[2];s->ppqn_index=p[3];s->run_mode=p[4];s->swapped=p[5];
@@ -35,19 +37,19 @@ bool nf_settings_decode_size(NfSettings *s,const uint8_t *p,unsigned length) {
             NfRhythm rhythm={(uint8_t)((bits&31u)+1u),(uint8_t)((bits>>5)&63u),(uint8_t)((bits>>11)&31u),(uint8_t)((bits>>16)&127u),(uint8_t)(bits>>23)};
             if(rhythm.hits>rhythm.steps || rhythm.rotate>=rhythm.steps || rhythm.probability>100)return false;
             s->rhythms[i]=rhythm;
-            if(length==NF_SETTINGS_BYTES || length==NF_V6_SETTINGS_BYTES) {
+            if(length==NF_SETTINGS_BYTES || length==NF_V7_SETTINGS_BYTES || length==NF_V6_SETTINGS_BYTES) {
                 if(r[3]>50 || r[4]<1 || r[4]>8)return false;
                 s->grooves[i]=(NfGroove){r[3],r[4]};
             }
         }
-        if(length==NF_SETTINGS_BYTES) {
+        if(length==NF_SETTINGS_BYTES || length==NF_V7_SETTINGS_BYTES) {
             unsigned bits=get16(p+212+i*2);
             NfTone t={(uint8_t)(bits&7u),(uint8_t)((bits>>3)&15u),(uint8_t)(((bits>>7)&3u)+1u),(uint8_t)(bits>>9)};
             if(t.scale>=NF_SCALES || t.root>11 || t.slew>100)return false;s->tones[i]=t;
         }
         for(unsigned f=0;f<NF_FIELDS;++f) {
             unsigned source,a,b;
-            if(length==NF_SETTINGS_BYTES || length==NF_V6_SETTINGS_BYTES) {
+            if(length==NF_SETTINGS_BYTES || length==NF_V7_SETTINGS_BYTES || length==NF_V6_SETTINGS_BYTES) {
                 unsigned bit=(i*NF_FIELDS+f)*18,at=64+bit/8,shift=bit&7u;
                 uint32_t v=((uint32_t)p[at]|((uint32_t)p[at+1]<<8)|((uint32_t)p[at+2]<<16))>>shift;
                 source=v&3u;a=(v>>2)&255u;b=(v>>10)&255u;
@@ -62,7 +64,7 @@ bool nf_settings_decode_size(NfSettings *s,const uint8_t *p,unsigned length) {
 bool nf_settings_decode(NfSettings *s,const uint8_t *p) {return nf_settings_decode_size(s,p,NF_SETTINGS_BYTES);}
 bool nf_settings_encode(const NfSettings *s,uint8_t *p) {
     for(unsigned i=0;i<NF_SETTINGS_BYTES;++i)p[i]=0;
-    put16(p,s->bpm);p[2]=s->external;p[3]=s->ppqn_index;p[4]=s->run_mode;p[5]=s->swapped;
+    p[228]=s->muted;put16(p,s->bpm);p[2]=s->external;p[3]=s->ppqn_index;p[4]=s->run_mode;p[5]=s->swapped;
     for(unsigned i=0;i<2;++i) {put16(p+8+i*4,s->calibration[i].zero);put16(p+10+i*4,s->calibration[i].positive);}
     for(unsigned i=0;i<8;++i) {
         NfRhythm rhythm=s->rhythms[i];if(!rhythm.steps)rhythm=NF_RHYTHM_DEFAULT;

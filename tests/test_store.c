@@ -12,7 +12,7 @@ static bool program_media(void *c,unsigned at,const void *p,unsigned n) {(void)c
 static NfStoreIo io={0,read_media,erase_media,program_media};
 static void blank(void) {memset(media,255,sizeof media);budget=-1;writes=erases=0;}
 static NfSettings settings(unsigned bpm) {
-    OriginalUi u={.bpm=bpm,.ppqn_index=6,.calibration={{83,3900},{2100,127}},.cv_swapped=true};
+    OriginalUi u={.bpm=bpm,.ppqn_index=6,.calibration={{83,3900},{2100,127}},.cv_swapped=true,.muted=0xa5};
     for(unsigned i=0;i<8;++i){u.outputs[i]=(NfConfig){i,4,1,99,100,100};u.rhythms[i]=(NfRhythm){32,(uint8_t)(i+1),(uint8_t)i,73,1};u.grooves[i]=(NfGroove){(uint8_t)(i*7),(uint8_t)(i+1)};u.tones[i]=(NfTone){(uint8_t)(i%7),(uint8_t)i,(uint8_t)(i%4+1),100};for(unsigned f=0;f<NF_FIELDS;++f)u.routes[i][f]=(NfCvRoute){2,-100,100};}
     NfSettings s;nf_settings_capture(&u,&s);return s;
 }
@@ -21,10 +21,12 @@ static void codec(void) {
     NfSettings s=settings(173),loaded;uint8_t bytes[NF_SETTINGS_BYTES],again[NF_SETTINGS_BYTES];
     assert(nf_settings_encode(&s,bytes));assert(nf_settings_decode(&loaded,bytes));assert(nf_settings_encode(&loaded,again));assert(!memcmp(bytes,again,sizeof bytes));
     assert(loaded.routes[7][5].depth==-100 && loaded.calibration[1].positive==127);
+    assert(loaded.muted==0xa5);
     assert(loaded.tones[7].scale==0 && loaded.tones[7].root==7 && loaded.tones[7].range==4 && loaded.tones[7].slew==100);
     assert(loaded.grooves[7].swing==49 && loaded.grooves[7].ratchet==8);
     assert(loaded.rhythms[7].steps==32 && loaded.rhythms[7].hits==8 && loaded.rhythms[7].rotate==7 && loaded.rhythms[7].probability==73 && loaded.rhythms[7].loop);
     /* Legacy layouts are covered with actual schema 1/2 images in test_presets.py. */
+    bytes[229]=1;assert(!nf_settings_decode(&loaded,bytes));bytes[229]=0;
     bytes[212]=(uint8_t)((bytes[212]&~7u)|7u);assert(!nf_settings_decode(&loaded,bytes));bytes[212]=again[212];
     bytes[175]=51;assert(!nf_settings_decode(&loaded,bytes));bytes[175]=again[175];
     bytes[176]=0;assert(!nf_settings_decode(&loaded,bytes));bytes[176]=again[176];

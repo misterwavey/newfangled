@@ -97,3 +97,10 @@ build/test-copy: tests/test_copy.c tests/oled_stub.c firmware/voice.c firmware/a
 test-copy: build/test-copy
 	./build/test-copy
 test-firmware: test-copy
+
+build/test-mute: tests/test_mute.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/ui.h | build
+	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_mute.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
+.PHONY: test-mute
+test-mute: build/test-mute
+	./build/test-mute
+test-firmware: test-mute

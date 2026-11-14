@@ -19,6 +19,7 @@ def default_patch(bpm=173):
     route=dict(source='CV2',depth=-100,bias=50)
     output=dict(pitch=dict(scale='MINOR PENTATONIC',root='F#',octaves=3,slew_ms=740),groove=dict(swing=37,ratchet=7),rhythm=dict(steps=13,hits=5,rotate=11,probability=73,loop=True),ratio='X3',shape='RANDOM',width=27,phase=11,level=83,offset=5,cv={name:dict(route) for name in fmt.FIELDS})
     outputs=[copy.deepcopy(output) for _ in range(8)]
+    for i in range(8):outputs[i]['muted']=bool(0xa5&(1<<i))
     for i in range(7):
         for f,name in enumerate(fmt.FIELDS):outputs[i]['cv'][name]=dict(source=fmt.SOURCES[(i+f)%3],depth=-100+(i*13+f*37)%201,bias=100-(i*17+f*29)%201)
     return dict(tempo_bpm=bpm,clock_source='EXT',ppqn=4,run_input='RESET',cv_swap=True,calibration=[dict(zero=51,positive_5v=3900),dict(zero=2000,positive_5v=120)],outputs=outputs)
@@ -55,7 +56,9 @@ int main(int argc,char **argv){assert(argc==2 || argc==3);FILE *f=fopen(argv[1],
 NfStore s;NfStoreIo io={0,rd,er,wr};assert(nf_store_open(&s,io)==NF_STORE_OK);assert(s.last_slot==2 && s.sequence==43);
 OriginalUi ui={.running=true};assert(nf_presets_boot(&s,&ui));assert(ui.bpm==173 && !ui.running && ui.external && ui.cv_swapped);
 assert(ui.routes[7][5].depth==-100 && ui.calibration[1].positive==120);
-if(argc==2){assert(ui.tones[7].scale==6 && ui.tones[7].root==6 && ui.tones[7].range==3 && ui.tones[7].slew==37);assert(ui.grooves[7].swing==37 && ui.grooves[7].ratchet==7);assert(ui.rhythms[7].steps==13 && ui.rhythms[7].hits==5 && ui.rhythms[7].rotate==11 && ui.rhythms[7].probability==73 && ui.rhythms[7].loop);}
+if(argc==3)assert(ui.muted==0);
+if(argc==2){assert(ui.muted==0xa5);assert(ui.tones[7].scale==6 && ui.tones[7].root==6 && ui.tones[7].range==3 && ui.tones[7].slew==37);assert(ui.grooves[7].swing==37 && ui.grooves[7].ratchet==7);assert(ui.rhythms[7].steps==13 && ui.rhythms[7].hits==5 && ui.rhythms[7].rotate==11 && ui.rhythms[7].probability==73 && ui.rhythms[7].loop);}
+else if(argv[2][0]=='7'){assert(ui.tones[7].scale==6 && ui.grooves[7].swing==37 && ui.rhythms[7].steps==13);}
 else if(argv[2][0]=='6'){assert(ui.tones[7].scale==0 && ui.tones[7].slew==0 && ui.grooves[7].swing==37 && ui.rhythms[7].steps==13);}
 else if(argv[2][0]=='5'){assert(ui.grooves[7].swing==0 && ui.grooves[7].ratchet==1);assert(ui.rhythms[7].steps==13 && ui.rhythms[7].hits==5);}
 else {assert(ui.grooves[7].swing==0 && ui.grooves[7].ratchet==1);assert(ui.rhythms[7].steps==1 && ui.rhythms[7].hits==1 && ui.rhythms[7].probability==100 && !ui.rhythms[7].loop);}
@@ -75,6 +78,10 @@ NfSettings p;unsigned char out[NF_SETTINGS_BYTES];nf_settings_capture(&ui,&p);as
             image.write_bytes(fmt.bank_image({3:old},3,12,42)+b'\xff'*4096)
             payload=subprocess.check_output([str(exe),str(image),'6'])
             self.assertEqual(payload,fmt.encode(fmt.decode(old)))
+            old=fmt.encode(default_patch(),schema=4)
+            image.write_bytes(fmt.bank_image({3:old},3,12,42)+b'\xff'*4096)
+            payload=subprocess.check_output([str(exe),str(image),'7'])
+            self.assertEqual(payload,fmt.encode(fmt.decode(old)))
 
     def test_legacy_preset_upgrade(self):
         patch=default_patch()
@@ -83,11 +90,11 @@ NfSettings p;unsigned char out[NF_SETTINGS_BYTES];nf_settings_capture(&ui,&p);as
         current=fmt.decode(old)
         self.assertEqual(current['outputs'][7]['rhythm'],dict(steps=1,hits=1,rotate=0,probability=100,loop=False))
         backup=dict(format='newfangled-presets',version=1,boot_slot=3,slots=[dict(slot=3,patch=patch)])
-        upgraded=fmt.validate(backup)[3];self.assertEqual(len(upgraded),228)
+        upgraded=fmt.validate(backup)[3];self.assertEqual(len(upgraded),230)
         self.assertEqual(fmt.decode(upgraded),current)
         state=fmt.scan(fmt.bank_image({3:old,8:upgraded},3,1,0)+b'\xff'*4096)
         self.assertFalse(state['future']);self.assertEqual(state['slots'][3],old)
-        self.assertEqual(fmt.library(state)['version'],4)
+        self.assertEqual(fmt.library(state)['version'],5)
         patch=default_patch()
         for o in patch['outputs']:o.pop('groove')
         v5=dict(format='newfangled-presets',version=2,boot_slot=2,slots=[dict(slot=2,patch=patch)])
@@ -105,6 +112,15 @@ NfSettings p;unsigned char out[NF_SETTINGS_BYTES];nf_settings_capture(&ui,&p);as
         self.assertEqual(upgraded['outputs'][7]['pitch'],dict(scale='OFF',root='C',octaves=1,slew_ms=0))
         self.assertEqual(upgraded['outputs'][7]['groove'],p['outputs'][7]['groove'])
 
+    def test_v7_and_mute_validation(self):
+        p=default_patch();p['outputs'][0]['muted']=1
+        with self.assertRaises(ValueError):fmt.encode(p)
+        p=default_patch()
+        for o in p['outputs']:o.pop('muted')
+        old=dict(format='newfangled-presets',version=4,boot_slot=1,slots=[dict(slot=1,patch=p)])
+        migrated=fmt.decode(fmt.validate(old)[1]);self.assertTrue(all(o['muted'] is False for o in migrated['outputs']))
+        self.assertEqual(migrated['outputs'][7]['pitch'],p['outputs'][7]['pitch'])
+
     def test_dfu_preview_guard_and_merge(self):
         media=bytearray(fmt.bank_image({1:fmt.encode(default_patch())},1,1,0)+b'\xff'*4096)
         writes=[];identity=b'NFPRES01'+struct.pack('<II',fmt.BASE,8192)
@@ -118,7 +134,7 @@ NfSettings p;unsigned char out[NF_SETTINGS_BYTES];nf_settings_capture(&ui,&p);as
                 self.assertIn('-D',command);writes.append(command);payload=Path(command[-1]).read_bytes();offset=addr-fmt.BASE
                 self.assertIn(offset,[0,4096]);self.assertEqual(len(payload),4096);media[offset:offset+4096]=payload
         with tempfile.TemporaryDirectory() as directory:
-            path=Path(directory)/'presets.json';path.write_text(json.dumps(dict(format='newfangled-presets',version=4,boot_slot=8,slots=[dict(slot=8,patch=default_patch(180))])))
+            path=Path(directory)/'presets.json';path.write_text(json.dumps(dict(format='newfangled-presets',version=5,boot_slot=8,slots=[dict(slot=8,patch=default_patch(180))])))
             args=['presets.py','--serial','ABC','--import',str(path)]
             with patch.object(sys,'argv',args),patch.object(cli.shutil,'which',return_value='dfu-util'),patch.object(cli.subprocess,'run',side_effect=run):cli.main()
             self.assertFalse(writes)

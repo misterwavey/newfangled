@@ -1,4 +1,4 @@
-# Presets — v0.7
+# Presets — v0.10
 
 Eight slots store the complete patch: tempo, clock source/PPQN, Run mode, eight
 output configurations and rhythm/probability/loop/swing/ratchet and random pitch/slew settings, all 48 CV routes, input swap and both calibration endpoint
@@ -50,8 +50,8 @@ and implements the halfword programming sequence in its
 [STM32F0 flash driver](https://github.com/STMicroelectronics/stm32f0xx-hal-driver/blob/master/Src/stm32f0xx_hal_flash.c).
 
 Two 4 KiB banks alternate. Each has a versioned header and up to 14 append-only
-256-byte records. A record contains slot/sequence, an explicit 228-byte
-little-endian settings payload (v0.4/v0.5/v0.6 records use 208/232/212 bytes), CRC32 and a final commit halfword. Uncommitted,
+256-byte records. A record contains slot/sequence, an explicit 230-byte
+little-endian settings payload (v0.4/v0.5/v0.6/v0.7–v0.9 use 208/232/212/228 bytes), CRC32 and a final commit halfword. Uncommitted,
 corrupt or semantically invalid records are ignored. When full, the inactive bank
 is erased, seeded with the latest eight slots and sealed last. Its header includes
 a CRC over the checkpoint records, so even a host transfer that writes the footer
@@ -157,3 +157,18 @@ writes a migration; explicit Save/Import writes the current schema. The two-bank
 journal, eight slots, flash reservation and external EEPROM policy are unchanged.
 Use v0.7 tools for export/import before downgrading: older firmware cannot read
 schema 4 and may restore an older patch or defaults.
+
+## v0.10 format and compatibility
+
+Schema 5 uses 230 bytes: v0.7–v0.9 bytes 0–227 unchanged, followed by the muted
+output mask at byte 228 (bit 0 OUT1 through bit 7 OUT8) and a zero reserved byte
+at 229. JSON version 5 adds a boolean `muted` field to every output. Numeric or
+string substitutes for boolean values are rejected. Schemas/JSON versions 1–4
+remain readable and gain muted=false, preserving their previous output behavior.
+
+Mute flags participate in Save/Load and Copy. Clear resets only the selected
+output's mute flag along with its settings. Runtime phase/random/slew state is
+still not persisted. Loading alone never writes a migration; explicit Save or
+Import writes the current format. Eight slots, bank layout, 8 KiB reservation,
+CRC/commit recovery and the external EEPROM policy are unchanged. Use current
+tools before downgrading; old firmware cannot interpret schema 5 records.

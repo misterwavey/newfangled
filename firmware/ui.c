@@ -15,6 +15,7 @@ void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now) {
 }
 bool original_ui_clear_output(OriginalUi *ui,unsigned output) {
     if(output>=8)return false;
+    ui->muted&=(uint8_t)~(1u<<output);
     ui->outputs[output]=(NfConfig){5,0,50,0,0,0};ui->effective[output]=ui->outputs[output];
     ui->rhythms[output]=NF_RHYTHM_DEFAULT;ui->grooves[output]=NF_GROOVE_DEFAULT;ui->tones[output]=NF_TONE_DEFAULT;
     for(unsigned f=0;f<NF_FIELDS;++f)ui->routes[output][f]=(NfCvRoute){0,100,0};
@@ -22,6 +23,7 @@ bool original_ui_clear_output(OriginalUi *ui,unsigned output) {
 }
 bool original_ui_copy_output(OriginalUi *ui,unsigned source,unsigned destination) {
     if(source>=8 || destination>=8 || source==destination)return false;
+    ui->muted=(uint8_t)((ui->muted&~(1u<<destination))|((ui->muted&(1u<<source))?(1u<<destination):0u));
     ui->outputs[destination]=ui->outputs[source];ui->effective[destination]=ui->outputs[source];
     ui->rhythms[destination]=ui->rhythms[source];ui->grooves[destination]=ui->grooves[source];ui->tones[destination]=ui->tones[source];
     for(unsigned f=0;f<NF_FIELDS;++f)ui->routes[destination][f]=ui->routes[source][f];
@@ -140,6 +142,7 @@ bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now) {
             else if(ui->cv_menu) {if(ui->cv_field<4)ui->editing=!ui->editing;}
             else if(ui->page) {
                 if(!ui->selecting) {ui->selecting=true;ui->field=0;}
+                else if(ui->field==NF_MUTE_FIELD) {ui->muted^=(uint8_t)(1u<<(ui->page-1u));ui->editing=false;}
                 else if(ui->field==NF_COPY_FIELD) {ui->copy_mode=1;ui->copy_target=(uint8_t)(ui->page%8u);ui->copy_yes=false;ui->editing=false;}
                 else if(ui->field==NF_CLEAR_FIELD) {ui->clear_confirm=true;ui->clear_yes=false;ui->editing=false;}
                 else if(ui->field<NF_FIELDS || ui->field>=8)ui->editing=!ui->editing;
@@ -203,7 +206,7 @@ void original_ui_render(const OriginalUi *ui) {
     if(ui->cv_monitor) {
         if(ui->page) {original_text(0,0,"OUT",2);number(ui->page,value);original_text(40,0,value,2);transport_icon(119,ui->active);}
         else {transport_icon(0,ui->active);original_text(14,0,"CV",2);}
-        original_text(64,0,"MON",1);
+        original_text(64,0,"MON",1);if(ui->page && (ui->muted&(1u<<(ui->page-1u))))original_text(110,0,"M",1);
         unsigned input=ui->cv_input,bit=1u<<input;
         if(ui->cv_raw_valid&bit) {number(ui->cv_raw[input],value);unsigned x=original_text(64,8,"R",1);original_text(x,8,value,1);}
         unsigned x=original_text(0,18,input?"CV2 ":"CV1 ",2);
@@ -229,7 +232,7 @@ void original_ui_render(const OriginalUi *ui) {
             }
             return;
         }
-        original_text(14,0,"NEWFANGLED 0.9",1);
+        original_text(14,0,"NEWFANGLED 0.10",1);
         number(ui->external?ui->external_bpm:ui->bpm,value);original_text(0,10,ui->external && !ui->external_bpm?"---":value,2);original_text(43,15,"BPM",1);
         original_text(83,15,ui->editing?"EDIT":"VIEW",1);
         const char *status[]={"TURN OUT / CLICK BPM","EXT WAIT","EXT LOCK","EXT LOST","RUN LOW","EXT ARMED"};
@@ -239,7 +242,8 @@ void original_ui_render(const OriginalUi *ui) {
         original_text(0,0,"OUT",2);number(ui->page,value);original_text(40,0,value,2);
         unsigned field=ui->selecting?ui->field:0;
         bool routed_base=ui->editing && !ui->cv_menu && field<NF_FIELDS && ui->routes[ui->page-1][field].source;
-        original_text(64,0,ui->copy_mode==2 || ui->clear_confirm?"CONFIRM":ui->copy_mode?"DEST":routed_base?"BASE":ui->editing?"EDIT":ui->selecting?"SELECT":"VIEW",1);
+        original_text(64,0,ui->copy_mode==2 || ui->clear_confirm?"CONFIRM":ui->copy_mode?"DEST":routed_base?"BASE":ui->editing?"EDIT":ui->selecting?"SELECT":(ui->muted&(1u<<(ui->page-1u)))?"MUTED":"VIEW",1);
+        if(ui->muted&(1u<<(ui->page-1u)))original_text(110,0,"M",1);
         transport_icon(119,ui->active);
         if(ui->copy_mode) {
             if(ui->copy_mode==1) {unsigned x=original_text(0,18,"TO OUT",2);number(ui->copy_target+1u,value);original_text(x,18,value,2);}
@@ -256,7 +260,8 @@ void original_ui_render(const OriginalUi *ui) {
             else if(ui->cv_field==1) {const char *sources[]={"OFF","CV1","CV2"};x=original_text(0,18,"SRC ",2);original_text(x,18,sources[route.source],2);}
             else if(ui->cv_field<4) {x=original_text(0,18,ui->cv_field==2?"DEP ":"BIAS ",2);x=signed_value(x,18,ui->cv_field==2?route.depth:route.bias,2);original_text(x,18,"%",2);}
             else {parameter(&ui->effective[ui->page-1],ui->cv_target);}
-        } else if(field==NF_COPY_FIELD)original_text(0,18,"COPY TO",2);
+        } else if(field==NF_MUTE_FIELD)original_text(0,18,(ui->muted&(1u<<(ui->page-1u)))?"MUTE ON":"MUTE OFF",2);
+        else if(field==NF_COPY_FIELD)original_text(0,18,"COPY TO",2);
         else if(field==NF_CLEAR_FIELD)original_text(0,18,"CLEAR OUT",2);
         else if(field>=15) {
             NfTone t=ui->tones[ui->page-1];unsigned x;

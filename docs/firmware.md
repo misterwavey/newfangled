@@ -1,4 +1,4 @@
-# Pam’s Newfangled Workout v0.9
+# Pam’s Newfangled Workout v0.10
 
 Eight independently configured unipolar outputs on ALM017 Rev 62. Boots stopped;
 Stop parks every output at zero. This is an early, independently authored application
@@ -152,7 +152,7 @@ Clear can be used while playback runs. It does not restart the master clock or
 other outputs and does not alter tempo, source, PPQN, Run mode, calibration or
 saved preset slots. Clearing is an unsaved patch edit: explicitly SAVE afterward
 if it should survive power-on. Loading a saved patch can restore the previous
-output. The preset format remains unchanged from v0.7 (schema/JSON version 4).
+output. The mute state is reset to OFF; LEVEL stays zero. See [mute output](#mute-output--v010) for current preset behavior.
 
 Native tests cover cancellation, confirmation, each of eight output positions,
 clearing while running, independent phase/random state, zero output under CV and
@@ -185,10 +185,43 @@ empty output silences the destination and removes its previous CV routes.
 
 Copy returns to the source's VIEW screen. It is an unsaved patch edit: SAVE if
 you want it retained after power cycling. Preset slots and format are unchanged
-until an explicit Save; schema/JSON version 4 still applies.
+until an explicit Save; the current schema/JSON version stores mute along with the other output settings.
 
 Native tests cover destination selection, self-exclusion, NO/YES/hold, all 56
 ordered pairs, every configuration field and route, running source/other-output
 isolation, repeated copies and copying an empty output. Browser tests cover the
 complete UI, session replay and Save/power-cycle behavior. Physical v0.9 copying
 has not yet been bench-tested.
+
+## Mute output — v0.10
+
+From an OUT's VIEW screen, click to select RATIO, then turn left **three** steps
+to **MUTE**. Click to toggle **MUTE ON/OFF** immediately. No separate edit mode
+or confirmation is needed. Turn to select another parameter, or hold to return
+to VIEW. The parameter order after OCTS is MUTE, COPY TO, CLEAR OUT, preserving
+the one-step-left Clear and two-step-left Copy shortcuts.
+
+VIEW shows **MUTED** while a muted output is selected. An **M** beside the global
+play/stop icon remains visible during parameter selection/editing, CV monitoring
+and Copy/Clear confirmation. Simulator scope headings also show MUTED. The
+transport icon continues to show playback state: muting is not Stop.
+
+Mute forces the final output voltage to zero for every waveform, regardless of
+LEVEL, OFFS, CV routing, pitch or slew. All latent processing continues: phase,
+Euclidean position, swing, random/probability decisions and slew stay in time.
+Unmuting immediately returns to the current value; it can join a gate or glide
+partway through. It does not restart that output or affect the other seven.
+All eight outputs may be muted while transport continues running. Start/Stop or
+reset retains mute flags and otherwise follows its normal lifecycle.
+
+SAVE retains the per-output flags; loading a preset restores them stopped. Old
+presets default to all outputs unmuted. Copy inherits the source's mute flag;
+Clear resets that flag OFF but leaves the output silent at LEVEL=0. No automatic
+save occurs. Even if all outputs are muted, Save/Load still require playback
+fully stopped/disarmed. See [preset format](presets.md#v010-format-and-compatibility).
+
+Software tests compare muted and unmuted reference engines for phase, random,
+probability, swing, slew and external-clock continuity, including live unmute.
+They cover all waveforms/outputs, CV/OFFS masking, all-muted playback, OLED/scope
+indicators, Copy/Clear interactions, old-format migration and saved mute flags.
+Physical v0.10 mute/unmute behavior has not yet been bench-tested.

@@ -3,7 +3,10 @@
 static void reset_voices(OriginalApp *a) {for(unsigned i=0;i<8;++i)nf_voice_reset(&a->voices[i],i);}
 static void values(OriginalApp *a,bool tick) {
     unsigned step=a->step?a->step:a->clock.bpm;
-    for(unsigned i=0;i<8;++i)a->output[i]=nf_voice_output(&a->voices[i],a->clock.running,step,tick);
+    for(unsigned i=0;i<8;++i) {
+        uint16_t value=nf_voice_output(&a->voices[i],a->clock.running,step,tick);
+        a->output[i]=(a->muted&(1u<<i))?0:value;
+    }
 }
 static void cv_values(OriginalApp *a,unsigned manual_resets) {
     static const unsigned minimum[NF_FIELDS]={0,0,1,0,0,0};
@@ -73,7 +76,7 @@ void original_app_sync(OriginalApp *a) {
     unsigned ppqn=nf_ppqn_values[a->ui.ppqn_index];
     bool source_changed=a->external!=a->ui.external || (a->ui.external && a->ppqn!=ppqn);
     bool reset=a->reset_seen!=a->ui.reset_count;
-    a->requested=a->ui.running;a->external=a->ui.external;a->ppqn=ppqn;a->run_mode=a->ui.run_mode;
+    a->muted=a->ui.muted;a->requested=a->ui.running;a->external=a->ui.external;a->ppqn=ppqn;a->run_mode=a->ui.run_mode;
     if(source_changed) {nf_sync_init(&a->sync,ppqn);a->sync.last_tick_us=a->now_us;original_clock_running(&a->clock,false);reset_voices(a);}
     if(!a->external) {original_clock_tempo(&a->clock,a->ui.bpm);a->step=a->clock.bpm;}
     if(reset) {

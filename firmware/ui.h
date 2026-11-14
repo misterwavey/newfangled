@@ -9,6 +9,7 @@
 #include "preset_format.h"
 typedef struct {
     unsigned bpm,page;
+    uint8_t muted;
     int encoder;
     uint8_t previous,candidate,stable;
     uint32_t changed_at,reset_count;

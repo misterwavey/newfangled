@@ -8,6 +8,7 @@ typedef struct {OriginalUi ui;OriginalClock clock;uint32_t reset_seen,output_res
     uint32_t now_us;
     bool external,requested,run_high,reset_input;
     unsigned ppqn,run_mode,step;
+    uint8_t muted;
     NfConfig base[8];
     NfCv cv;NfCvPlan cv_plans[8][NF_FIELDS];
     uint32_t cv_display_us;

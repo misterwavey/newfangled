@@ -111,7 +111,7 @@ uint32_t sim_get(uint32_t index) {
     case 31:return (uint32_t)ui.cv_normalized[0];case 32:return (uint32_t)ui.cv_normalized[1];
     case 33:return ui.cv_valid;case 34:return ui.cv_swapped;case 35:return ui.preset_menu;case 36:return ui.preset_slot;
     case 37:return ui.preset_field;case 38:return ui.preset_status;case 39:return presets.mask;
-    case 40:return presets.last_slot;case 41:return presets.sequence;case 42:return ui.clear_confirm;case 43:return ui.clear_yes;case 44:return ui.copy_mode;case 45:return ui.copy_target;case 46:return ui.copy_yes;default:return 0;
+    case 40:return presets.last_slot;case 41:return presets.sequence;case 42:return ui.clear_confirm;case 43:return ui.clear_yes;case 44:return ui.copy_mode;case 45:return ui.copy_target;case 46:return ui.copy_yes;case 47:return ui.muted;default:return 0;
     }
 }
 uintptr_t sim_framebuffer(void) {return (uintptr_t)framebuffer;}
@@ -158,3 +158,5 @@ uint32_t sim_pitch(uint32_t channel,uint32_t item) {
     unsigned values[]={t.scale,t.root,t.range,t.slew*20u,app.clock.running && app.voices[channel].allowed?nf_voice_note(&app.voices[channel]):255,app.voices[channel].slew_remaining};
     return item<6?values[item]:0;
 }
+
+uint32_t sim_muted(uint32_t channel) {return channel<8?(ui.muted>>channel)&1u:0u;}

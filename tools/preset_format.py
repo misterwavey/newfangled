@@ -21,9 +21,9 @@ def choice(value,values):
     if isinstance(value,bool):raise ValueError('Invalid preset choice')
     return values.index(value)
 
-def encode(p,legacy=False,schema=4):
+def encode(p,legacy=False,schema=5):
     if legacy:schema=1
-    length={1:208,2:232,3:212,4:228}[schema];b=bytearray(length)
+    length={1:208,2:232,3:212,4:228,5:230}[schema];b=bytearray(length)
     struct.pack_into('<H',b,0,integer(p['tempo_bpm'],10,300))
     b[2:6]=bytes((choice(p['clock_source'],('INT','EXT')),choice(p['ppqn'],PPQN),choice(p['run_input'],RUNS),int(p['cv_swap'])))
     if type(p['cv_swap']) is not bool:raise ValueError('CV swap must be boolean')
@@ -37,6 +37,9 @@ def encode(p,legacy=False,schema=4):
             else:
                 bit=(i*6+f)*18;at=64+bit//8;v=(source|((depth&255)<<2)|((bias&255)<<10))<<(bit%8)
                 for j in range(3):b[at+j]|=(v>>(j*8))&255
+        if schema==5:
+            if type(o['muted']) is not bool:raise ValueError('Muted must be boolean')
+            if o['muted']:b[228]|=1<<i
         if schema==1:continue
         r=o['rhythm'];steps=integer(r['steps'],1,32)
         if type(r['loop']) is not bool:raise ValueError('Loop must be boolean')
@@ -44,7 +47,7 @@ def encode(p,legacy=False,schema=4):
         at=208+i*3 if schema==2 else 172+i*5;b[at:at+3]=bits.to_bytes(3,'little')
         if schema>=3:
             g=o['groove'];b[at+3]=integer(g['swing'],0,50);b[at+4]=integer(g['ratchet'],1,8)
-        if schema==4:
+        if schema>=4:
             t=o['pitch'];ms=integer(t['slew_ms'],0,2000)
             if ms%20:raise ValueError('Slew must be a multiple of 20 ms')
             bits=choice(t['scale'],SCALES)|(choice(t['root'],NOTES)<<3)|((integer(t['octaves'],1,4)-1)<<7)|((ms//20)<<9)
@@ -52,7 +55,8 @@ def encode(p,legacy=False,schema=4):
     return bytes(b)
 
 def decode(b):
-    if len(b) not in (208,232,212,228) or b[6:8]!=b'\0\0':raise ValueError('Invalid payload')
+    if len(b) not in (208,232,212,228,230) or b[6:8]!=b'\0\0':raise ValueError('Invalid payload')
+    if len(b)==230 and b[229]:raise ValueError('Nonzero reserved mute byte')
     p=dict(tempo_bpm=struct.unpack_from('<H',b)[0],clock_source=('INT','EXT')[b[2]],ppqn=PPQN[b[3]],run_input=RUNS[b[4]],cv_swap=bool(b[5]),
            calibration=[dict(zip(('zero','positive_5v'),struct.unpack_from('<HH',b,8+i*4))) for i in range(2)],outputs=[])
     if b[5]>1:raise ValueError('Invalid swap')
@@ -61,12 +65,13 @@ def decode(b):
         at=208+i*3 if len(b)==232 else 172+i*5
         bits=int.from_bytes(b[at:at+3],'little') if len(b)!=208 else 32|(100<<16)
         o['rhythm']=dict(steps=(bits&31)+1,hits=(bits>>5)&63,rotate=(bits>>11)&31,probability=(bits>>16)&127,loop=bool(bits>>23))
-        o['groove']=dict(swing=b[at+3],ratchet=b[at+4]) if len(b) in (212,228) else dict(swing=0,ratchet=1)
-        bits=struct.unpack_from('<H',b,212+i*2)[0] if len(b)==228 else 0
+        o['muted']=bool(b[228]&(1<<i)) if len(b)==230 else False
+        o['groove']=dict(swing=b[at+3],ratchet=b[at+4]) if len(b) in (212,228,230) else dict(swing=0,ratchet=1)
+        bits=struct.unpack_from('<H',b,212+i*2)[0] if len(b) in (228,230) else 0
         o['pitch']=dict(scale=SCALES[bits&7],root=NOTES[(bits>>3)&15],octaves=((bits>>7)&3)+1,slew_ms=(bits>>9)*20)
         o['cv']={}
         for f,name in enumerate(FIELDS):
-            if len(b) in (212,228):
+            if len(b) in (212,228,230):
                 bit=(i*6+f)*18;offset=64+bit//8;v=int.from_bytes(b[offset:offset+3],'little')>>(bit%8)
                 source=v&3;depth=(v>>2)&255;bias=(v>>10)&255;depth=depth if depth<128 else depth-256;bias=bias if bias<128 else bias-256
             else:source,depth,bias=struct.unpack_from('<Bbb',b,64+(i*6+f)*3)
@@ -76,7 +81,7 @@ def decode(b):
     return p
 
 def validate(library):
-    if library['format']!='newfangled-presets' or library['version'] not in (1,2,3,4) or type(library['version']) is not int:raise ValueError('Unsupported preset backup')
+    if library['format']!='newfangled-presets' or library['version'] not in (1,2,3,4,5) or type(library['version']) is not int:raise ValueError('Unsupported preset backup')
     if not isinstance(library['slots'],list) or len(library['slots'])>8:raise ValueError('Invalid slots')
     slots={}
     for slot in library['slots']:
@@ -86,6 +91,7 @@ def validate(library):
         if library['version']<3:
             p={**p,'outputs':[{**o,'groove':dict(swing=0,ratchet=1),**({'rhythm':dict(steps=1,hits=1,rotate=0,probability=100,loop=False)} if library['version']==1 else {})} for o in p['outputs']]}
         if library['version']<4:p={**p,'outputs':[{**o,'pitch':dict(scale='OFF',root='C',octaves=1,slew_ms=0)} for o in p['outputs']]}
+        if library['version']<5:p={**p,'outputs':[{**o,'muted':False} for o in p['outputs']]}
         slots[n]=encode(p)
     boot=library['boot_slot']
     if slots and boot is None:raise ValueError('Nonempty library needs a boot slot')
@@ -97,7 +103,7 @@ def validate(library):
 def newer(a,b):return 0<((a-b)&0xffffffff)<0x80000000
 
 def record(slot,sequence,payload):
-    decode(payload);b=bytearray(b'\xff'*256);b[:4]=b'NFP1';struct.pack_into('<HHB',b,4,{208:1,232:2,212:3,228:4}[len(payload)],len(payload),slot-1);struct.pack_into('<I',b,12,sequence&0xffffffff);b[16:16+len(payload)]=payload
+    decode(payload);b=bytearray(b'\xff'*256);b[:4]=b'NFP1';struct.pack_into('<HHB',b,4,{208:1,232:2,212:3,228:4,230:5}[len(payload)],len(payload),slot-1);struct.pack_into('<I',b,12,sequence&0xffffffff);b[16:16+len(payload)]=payload
     struct.pack_into('<I',b,248,zlib.crc32(b[:248]));struct.pack_into('<H',b,254,0xc33c);return bytes(b)
 
 def scan(media):
@@ -119,8 +125,8 @@ def scan(media):
         at=bank*BANK_BYTES+256*(i+1);r=media[at:at+256]
         if r[:4]!=b'NFP1' or r[-2:]!=b'<\xc3' or struct.unpack_from('<I',r,248)[0]!=zlib.crc32(r[:248]):continue
         schema,size=struct.unpack_from('<HH',r,4)
-        if schema not in (1,2,3,4):future=True;continue
-        if size!={1:208,2:232,3:212,4:228}[schema] or r[8]>=8:continue
+        if schema not in (1,2,3,4,5):future=True;continue
+        if size!={1:208,2:232,3:212,4:228,5:230}[schema] or r[8]>=8:continue
         try:decode(r[16:16+size])
         except (ValueError,IndexError):continue
         slot=r[8]+1;seq=struct.unpack_from('<I',r,12)[0]
@@ -129,7 +135,7 @@ def scan(media):
     return dict(bank=bank,generation=generation,sequence=sequence,slots={s:p[1] for s,p in slots.items()},boot_slot=boot,future=future)
 
 def library(state):
-    return dict(format='newfangled-presets',version=4,boot_slot=state['boot_slot'],slots=[dict(slot=s,patch=decode(p)) for s,p in sorted(state['slots'].items())])
+    return dict(format='newfangled-presets',version=5,boot_slot=state['boot_slot'],slots=[dict(slot=s,patch=decode(p)) for s,p in sorted(state['slots'].items())])
 
 def bank_image(slots,boot,generation,sequence):
     b=bytearray(b'\xff'*BANK_BYTES)

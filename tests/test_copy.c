@@ -35,8 +35,9 @@ static void isolation(void){
         a.ui.calibration[0]=(NfCvCalibration){83,3900};a.ui.calibration[1]=(NfCvCalibration){2010,120};a.ui.preset_mask=0xa5;a.ui.preset_slot=4;
         a.ui.outputs[source]=(NfConfig){6,4,23,12,83,7};a.ui.rhythms[source]=(NfRhythm){13,9,4,87,1};a.ui.grooves[source]=(NfGroove){33,4};a.ui.tones[source]=(NfTone){3,3,3,20};
         for(unsigned f=0;f<NF_FIELDS;++f)a.ui.routes[source][f]=(NfCvRoute){2,-73,21};
+        a.ui.muted=(uint8_t)(source%2u?(1u<<destination):(1u<<source));
         original_app_sync(&a);for(unsigned t=0;t<777;++t)original_app_tick(&a);OriginalApp before=a;
-        assert(original_ui_copy_output(&a.ui,source,destination));original_app_sync(&a);settings_equal(&a.ui,source,destination);
+        assert(original_ui_copy_output(&a.ui,source,destination));original_app_sync(&a);settings_equal(&a.ui,source,destination);assert(((a.ui.muted>>source)&1u)==((a.ui.muted>>destination)&1u));
         assert(a.ui.running && a.requested && a.clock.running && a.clock.phase==before.clock.phase && a.clock.beats==before.clock.beats);
         assert(a.ui.bpm==137 && a.ui.cv_swapped && a.ui.preset_mask==0xa5 && a.ui.preset_slot==4 && a.ui.reset_count==before.ui.reset_count);
         assert(!memcmp(a.ui.calibration,before.ui.calibration,sizeof a.ui.calibration));
