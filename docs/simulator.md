@@ -1,4 +1,4 @@
-# Newfangled v0.2 desktop simulator
+# Newfangled v0.3 desktop simulator
 
 Run `make simulator-dev`, then open http://localhost:8765. Source changes rebuild
 and reload the page; no unzip step is needed. `make simulator` also produces an
@@ -21,14 +21,15 @@ change ledger records actual C output codes/timestamps, retaining the latest 204
 changes. Long analog runs overwrite old ledger entries. Phase reset performs the
 hardware encoder+Start gesture. External clock and Run patch-bay controls now drive the shared synchronization
 engine. Hold Home in VIEW to select SRC EXT, matching PPQN and Run mode; see
-[synchronization](synchronization.md). CV assignments remain unimplemented.
+[synchronization](synchronization.md). CV1/CV2 sliders now drive per-parameter routes configured through CV SETUP.
+Use CV MON for raw and normalized input readings; see [CV routing](cv.md).
 
-Sessions record actions and a core hash for deterministic replay. The v0.2 session identifier intentionally rejects earlier navigation sessions
+Sessions record actions and a core hash for deterministic replay. The v0.3 session identifier intentionally rejects earlier navigation sessions
 because click/hold behavior has changed. The simulator does not model oscillator
 accuracy, SPI execution latency, DAC analog behavior or EEPROM.
 
 `make test-simulator` checks native C/WebAssembly state, all eight output values,
-framebuffers and output-change traces across 617 actions; independent timing
+framebuffers and output-change traces across 745 actions; independent timing
 oracles check baseline transport and trace bounds. Frontend tests use a minimal
-DOM/Canvas adapter and do not assert browser layout. `make test-firmware` checks portable UI, clock and engine requirements. These
+DOM/Canvas adapter and do not assert browser layout. `make test-firmware` checks portable UI, clock, CV and engine requirements. These
 tests do not emulate SPI or measure hardware latency.

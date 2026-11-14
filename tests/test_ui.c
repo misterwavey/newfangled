@@ -109,6 +109,27 @@ int main(void) {
     click(&ui,4,&now);detent(&ui,1);assert(ui.field==2);click(&ui,4,&now);
     for(unsigned i=0;i<5;++i)detent(&ui,1);assert(ui.run_mode==NF_RUN_RESET);
     original_ui_render(&ui);
+    /* CV controls are independent per destination, bounded, and directly exitable. */
+    original_ui_init(&ui,15,0);now=0;ui.page=1;ui.selecting=true;ui.field=6;
+    click(&ui,4,&now);assert(ui.cv_menu && !ui.editing);
+    click(&ui,4,&now);for(unsigned i=0;i<4;++i)detent(&ui,1);assert(ui.cv_target==4);click(&ui,4,&now);
+    detent(&ui,1);click(&ui,4,&now);for(unsigned i=0;i<5;++i)detent(&ui,1);assert(ui.routes[0][4].source==2);
+    for(unsigned i=0;i<5;++i)detent(&ui,-1);assert(!ui.routes[0][4].source);detent(&ui,1);click(&ui,4,&now);
+    detent(&ui,1);click(&ui,4,&now);for(unsigned i=0;i<205;++i)detent(&ui,-1);assert(ui.routes[0][4].depth==-100);click(&ui,4,&now);
+    detent(&ui,1);click(&ui,4,&now);for(unsigned i=0;i<205;++i)detent(&ui,1);assert(ui.routes[0][4].bias==100);click(&ui,4,&now);
+    original_ui_render(&ui);assert(!ui.routes[0][0].source && ui.routes[0][0].depth==100);
+    detent(&ui,1);click(&ui,4,&now);assert(ui.cv_field==4 && !ui.editing);original_ui_render(&ui);
+    now+=30;(void)original_ui_update(&ui,11,now);(void)original_ui_update(&ui,11,now+20);
+    (void)original_ui_update(&ui,11,now+520);now+=550;(void)original_ui_update(&ui,15,now);(void)original_ui_update(&ui,15,now+20);
+    assert(!ui.cv_menu && !ui.selecting && !ui.editing && ui.page==1);
+    click(&ui,4,&now);detent(&ui,-1);click(&ui,4,&now);assert(ui.cv_monitor);
+    ui.cv_raw_valid=3;ui.cv_valid=3;ui.cv_raw[0]=4095;ui.cv_normalized[0]=NF_CV_Q;original_ui_render(&ui);
+    detent(&ui,1);assert(ui.cv_input==1);original_ui_render(&ui);
+    original_ui_init(&ui,15,0);now=0;ui.selecting=true;ui.field=5;ui.cv_raw_valid=3;ui.cv_raw[0]=4000;
+    click(&ui,4,&now);assert(ui.calibration[0].zero==4000 && !ui.editing);
+    detent(&ui,1);ui.cv_raw[0]=200;click(&ui,4,&now);assert(ui.calibration[0].positive==200);original_ui_render(&ui);
+    ui.field=4;click(&ui,4,&now);detent(&ui,1);assert(ui.cv_swapped);click(&ui,4,&now);
+    ui.field=3;click(&ui,4,&now);assert(ui.cv_monitor);original_ui_render(&ui);
     pnw_oled_clear();assert(original_text(127,31,"W",3)>127);assert(pixels<=1);
     unsigned count=pixels;assert(original_text(UINT_MAX,0,"A",1)==UINT_MAX);assert(pixels==count);
     original_text(0,0,"A",0);assert(pixels==count);

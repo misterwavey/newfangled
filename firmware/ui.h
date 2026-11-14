@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "voice.h"
 #include "sync.h"
+#include "cv.h"
 typedef struct {
     unsigned bpm,page;
     int encoder;
@@ -18,6 +19,12 @@ typedef struct {
     bool external,active,run_high;
     uint8_t ppqn_index,run_mode,sync_status;
     unsigned external_bpm;
+    NfCvRoute routes[8][NF_FIELDS];
+    NfCvCalibration calibration[2];
+    NfConfig effective[8];
+    uint16_t cv_raw[2];int32_t cv_normalized[2];
+    uint8_t cv_valid,cv_raw_valid,cv_field,cv_target,cv_input;
+    bool cv_menu,cv_monitor,cv_swapped;
 } OriginalUi;
 void original_ui_init(OriginalUi *ui,uint8_t raw,uint32_t now);
 bool original_ui_update(OriginalUi *ui,uint8_t raw,uint32_t now);

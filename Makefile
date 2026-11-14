@@ -8,12 +8,12 @@ newfangled-inputs:
 	python3 tools/build.py --inputs
 build:
 	mkdir -p build
-build/test-ui: tests/test_ui.c firmware/ui.c firmware/font.c firmware/voice.c firmware/sync.c firmware/ui.h firmware/sync.h firmware/font.h firmware/voice.h include/pnw_board.h | build
-	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_ui.c firmware/ui.c firmware/font.c firmware/voice.c firmware/sync.c -o $@
+build/test-ui: tests/test_ui.c firmware/ui.c firmware/font.c firmware/voice.c firmware/sync.c firmware/cv.c firmware/ui.h firmware/sync.h firmware/cv.h firmware/font.h firmware/voice.h include/pnw_board.h | build
+	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_ui.c firmware/ui.c firmware/font.c firmware/voice.c firmware/sync.c firmware/cv.c -o $@
 build/test-clock: tests/test_clock.c firmware/clock.c firmware/clock.h firmware/gate_bus.c firmware/gate_bus.h | build
 	$(CC) $(CFLAGS) -Ifirmware tests/test_clock.c firmware/clock.c firmware/gate_bus.c -o $@
-build/test-engine: tests/test_engine.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/sync.h firmware/ui.h firmware/clock.h firmware/font.h | build
-	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_engine.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
+build/test-engine: tests/test_engine.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/sync.h firmware/cv.h firmware/ui.h firmware/clock.h firmware/font.h | build
+	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_engine.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
 test-firmware: build/test-ui build/test-clock build/test-engine
 	./build/test-ui
 	./build/test-clock
@@ -32,8 +32,8 @@ test-simulator: simulator
 	python3 -m unittest discover -s tests -p test_simulator_dev.py
 test: test-firmware test-simulator
 
-build/test-sync: tests/test_sync.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/sync.h firmware/ui.h firmware/clock.h firmware/font.h | build
-	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_sync.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
+build/test-sync: tests/test_sync.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/sync.h firmware/cv.h firmware/ui.h firmware/clock.h firmware/font.h | build
+	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_sync.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
 .PHONY: test-sync
 test-sync: build/test-sync
 	./build/test-sync
@@ -43,3 +43,10 @@ test-firmware: test-sync
 test-build: newfangled
 	python3 -m unittest discover -s tests -p test_build.py
 test: test-build
+
+build/test-cv: tests/test_cv.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c firmware/voice.h firmware/app.h firmware/sync.h firmware/cv.h firmware/ui.h firmware/clock.h firmware/font.h | build
+	$(CC) $(CFLAGS) -Iinclude -Ifirmware tests/test_cv.c tests/oled_stub.c firmware/voice.c firmware/app.c firmware/sync.c firmware/cv.c firmware/ui.c firmware/clock.c firmware/font.c -o $@
+.PHONY: test-cv
+test-cv: build/test-cv
+	./build/test-cv
+test-firmware: test-cv

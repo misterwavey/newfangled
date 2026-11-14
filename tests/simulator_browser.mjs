@@ -66,4 +66,15 @@ assert.equal(sim.state().running,true);assert.equal($('transport-state').textCon
 sim.perform({type:'input',index:3,value:0});sim.perform({type:'advance',ms:1200});
 assert.equal(sim.state().running,false);assert.equal($('transport-state').textContent,'CLOCK LOST');
 assert(sim.state().outputs.every(v=>v===0));
+// CV routing uses only the same encoder gestures available on the module.
+$('reset').click();$('right').click();$('encoder').click();
+for(let i=0;i<4;i++)$('right').click();$('encoder').click();
+for(let i=0;i<100;i++)$('left').click();$('encoder').click();
+$('right').click();$('right').click();$('encoder').click();assert.equal(sim.state().cvMenu,true);
+$('encoder').click();for(let i=0;i<4;i++)$('right').click();$('encoder').click();
+$('right').click();$('encoder').click();$('right').click();$('encoder').click();$('back').click();
+$('start').click();$('cv0').value='4095';$('cv0').oninput({target:$('cv0')});sim.perform({type:'advance',ms:250});
+assert.equal(sim.core.sim_effective(0,4),100);
+$('cv0').value='0';$('cv0').oninput({target:$('cv0')});sim.perform({type:'advance',ms:250});
+assert.equal(sim.core.sim_effective(0,4),0);assert.equal(sim.core.sim_cv_route(0,4,0),1);
 console.log('Offline page: controls, clock/CV inputs, pause/step, seeded replay, framebuffer and invalid-session checks passed.');

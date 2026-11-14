@@ -191,12 +191,23 @@ bool pnw_midi_send(uint8_t byte) {
     if(!timeout) return false;
     REG(0x40013828)=byte;return true;
 }
-uint16_t pnw_cv_raw(unsigned input) {
-    if(input>1 || (REG(ADC+8)&4)) return 0;
-    REG(ADC+0x28)=1u<<(8+input); REG(ADC)=4; REG(ADC+8)|=4;
-    unsigned timeout=100000;
-    while(!(REG(ADC)&4) && --timeout) {}
-    return timeout?(uint16_t)REG(ADC+0x40):0;
+static volatile uint16_t cv_samples[2];
+static volatile uint8_t cv_valid;
+static volatile bool cv_ready;
+static bool cv_waiting;
+static unsigned cv_channel,cv_wait_ticks;
+uint16_t pnw_cv_raw(unsigned input) {return input<2?cv_samples[input]:0;}
+unsigned pnw_cv_valid(void) {return cv_valid;}
+void pnw_cv_service(void) {
+    if(!cv_ready)return;
+    if(cv_waiting) {
+        if(!(REG(ADC)&4u)) {if(++cv_wait_ticks>20)cv_valid=0;return;}
+        cv_samples[cv_channel]=(uint16_t)(REG(ADC+0x40)&4095u);cv_valid|=(uint8_t)(1u<<cv_channel);
+        cv_channel^=1u;cv_waiting=false;
+    }
+    if(REG(ADC+8)&4u)return;
+    REG(ADC+0x28)=1u<<(8u+cv_channel);REG(ADC)=4u|8u|16u;REG(ADC+8)|=4u;
+    cv_waiting=true;cv_wait_ticks=0;
 }
 static uint8_t status(void) {
     bus_begin();deselect();spi_mode(false);pin(A,15,false);transfer(5);
@@ -262,7 +273,7 @@ void pnw_board_init(void) {
     REG(ADC+8)=1u<<31;await_bits(ADC+8,1u<<31,0,7);
     for(volatile unsigned settle=0;settle<64;settle++) __asm volatile("nop");
     REG(ADC+0xc)=0;REG(ADC+0x14)=7;REG(ADC)=1;REG(ADC+8)=1;
-    await_bits(ADC,1,1,8);
+    await_bits(ADC,1,1,8);cv_ready=true;
     pin(A,1,false);pnw_delay(2);pin(A,1,true);pnw_delay(2);
     static const uint8_t init[]={0xae,0xa8,31,0xd3,0,0x40,0xda,2,0x20,0,0xa1,0xc8,0x81,0x8f,0xa6,0xdb,0x40,0xa4,0xd5,0x80,0x8d,0x14,0x2e,0xaf};
     for(unsigned i=0;i<sizeof(init);i++) command(init[i]);

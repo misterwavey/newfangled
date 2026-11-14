@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3 — CV input bench verification pending
+
+- Independent CV1/CV2 assignment for all six parameters on all eight outputs.
+- Signed attenuation/inversion and range-scaled bias; base knob values remain intact.
+- Input smoothing, ratio/shape hysteresis and phase-preserving CV ratio changes.
+- CV SETUP, raw/normalized monitors, input swap, and volatile 0 V/+5 V calibration.
+- Nonblocking ADC8/9 sampling; physical jack order, polarity and scaling need a bench pass.
+- Matching simulator controls and 745-action native/WASM parity including CV routes.
+- Existing clock/Run behavior retained; routes default OFF. No EEPROM operations added.
+
 ## v0.2 — core external-input behavior bench-confirmed
 
 - Internal/external clock source and eight PPQN choices from 1 to 48.

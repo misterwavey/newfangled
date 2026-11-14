@@ -9,12 +9,15 @@ function apply(action) {
   if(action.type==='input')core.sim_input(action.index,action.value);
   if(action.type==='raw')core.sim_raw(action.value);
   if(action.type==='hold')core.sim_hold_program();
+  if(action.type==='reset')core.sim_reset();
 }
 core.sim_reset();
 for(const [index,fixture] of scenarios.entries()) {
   apply(fixture.action);
-  assert.deepEqual(Array.from({length:26},(_,i)=>core.sim_get(i)),fixture.state,`state ${index}`);
+  assert.deepEqual(Array.from({length:35},(_,i)=>core.sim_get(i)>>>0),fixture.state,`state ${index}`);
   assert.deepEqual(Array.from({length:8},(_,i)=>core.sim_output(i)),fixture.outputs,`outputs ${index}`);
+  assert.deepEqual(Array.from({length:8},(_,i)=>Array.from({length:6},(_,f)=>core.sim_effective(i,f))),fixture.effective,`effective ${index}`);
+  assert.deepEqual(Array.from({length:8},(_,i)=>Array.from({length:6},(_,f)=>Array.from({length:3},(_,k)=>core.sim_cv_route(i,f,k)>>>0))),fixture.routes,`routes ${index}`);
   const pixels=Buffer.from(core.memory.buffer,core.sim_framebuffer(),512);
   assert.equal(pixels.toString('base64'),fixture.framebuffer,`framebuffer ${index}`);
   const edges=Array.from({length:Math.min(2048,core.sim_edge_count())},(_,j)=>{const i=Math.max(0,core.sim_edge_count()-2048)+j;return [core.sim_edge_time(i),core.sim_edge_level(i)];});
@@ -68,3 +71,25 @@ core.sim_click(0);assert.equal(core.sim_get(12),0);
 core.sim_input(2,1);core.sim_advance(1);assert.equal(core.sim_get(12),1);
 core.sim_input(2,0);core.sim_advance(1);assert.equal(core.sim_get(12),0);
 console.log('External clock: all PPQN settings, loss/reacquisition and gated Run passed.');
+
+// Per-parameter CV through real UI controls; base values remain separate.
+core.sim_reset();core.sim_turn(1);core.sim_click(1);
+for(let i=0;i<4;i++)core.sim_turn(1); // LEVEL
+core.sim_click(1);for(let i=0;i<100;i++)core.sim_turn(0);core.sim_click(1);
+core.sim_turn(1);core.sim_turn(1);core.sim_click(1);assert.equal(core.sim_get(26),1); // CV SETUP
+core.sim_click(1);for(let i=0;i<4;i++)core.sim_turn(1);core.sim_click(1); // DEST LEVEL
+core.sim_turn(1);core.sim_click(1);core.sim_turn(1);core.sim_click(1); // SRC CV1
+assert.equal(core.sim_cv_route(0,4,0),1);assert.equal(core.sim_cv_route(0,4,1),100);
+core.sim_hold_program();core.sim_click(0);
+core.sim_input(0,4095);core.sim_advance(250);assert.equal(core.sim_effective(0,4),100);
+core.sim_input(0,0);core.sim_advance(250);assert.equal(core.sim_effective(0,4),0);
+// Raw/normalized monitor, then inverted 0 V/+5 V endpoint capture.
+core.sim_click(1);core.sim_turn(0);core.sim_click(1);assert.equal(core.sim_get(27),1);
+core.sim_input(0,4000);core.sim_advance(200);assert.equal(core.sim_get(31),32007);
+core.sim_hold_program();core.sim_turn(0);assert.equal(core.sim_get(2),0);globalSettings();
+for(let i=0;i<5;i++)core.sim_turn(1);core.sim_click(1); // C1 ZERO=4000
+core.sim_turn(1);core.sim_input(0,200);core.sim_advance(200);core.sim_click(1); // C1 +5=200
+core.sim_advance(200);assert.equal(core.sim_get(31),32768);assert.equal(core.sim_effective(0,4),100);
+core.sim_input(0,4000);core.sim_advance(200);assert.equal(core.sim_get(31),0);assert.equal(core.sim_effective(0,4),0);
+core.sim_click(0);for(let i=0;i<8;i++)assert.equal(core.sim_output(i),0);
+console.log('CV routing, modulation endpoints, raw monitor, inverted calibration and Stop-to-zero passed.');

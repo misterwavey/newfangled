@@ -1,8 +1,8 @@
 # Pam’s Newfangled Workout
 
-Independent v0.2 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
+Independent v0.3 firmware for **ALM017 Pamela’s NEW Workout, PCB Rev 62**
 (STM32F042K6T6). Eight outputs with clock ratios, gate/triangle/ramps/random,
-width, phase, level and offset, plus external clock and Run/reset inputs. Boots
+width, phase, level and offset, external clock/Run inputs, and per-parameter CV routing. Boots
 stopped; Stop returns all outputs to zero.
 
 This repository contains only the Newfangled firmware, its source dependencies,
@@ -79,8 +79,8 @@ python3 tools/flash.py --write --serial YOUR_SERIAL --image build/newfangled/pnw
 
 Disconnect USB before reconnecting normal Eurorack power. This replaces application
 flash; the tool does not write option bytes. Keep a known-working restore image.
-The firmware does not use EEPROM, presets, CV assignments or expanders. External
-clock and Run/reset inputs are supported; see [synchronization](docs/synchronization.md).
+The firmware does not use EEPROM, presets or expanders. See
+[synchronization](docs/synchronization.md) and [CV routing/calibration](docs/cv.md).
 
 ## Controls
 
@@ -89,7 +89,8 @@ clock and Run/reset inputs are supported; see [synchronization](docs/synchroniza
 - On an output: click to browse parameters, turn to select one, click to edit its
   value, turn to adjust, click to return to parameter selection.
 - Hold the encoder for half a second to return directly to output browsing.
-- Hold the encoder on the BPM VIEW page to open SRC, PPQN and RUN settings.
+- Hold the encoder on BPM VIEW to open source, PPQN, Run and CV input settings.
+- Output parameter browsing includes CV SETUP and CV MON; see [CV controls](docs/cv.md).
 - Start arms/disarms playback. Hold the encoder and press Start to reset phase.
 - EXT waits for the incoming clock; Run GATE also requires the Run jack high.
   A lost external clock stops outputs and never silently falls back to INT.
@@ -101,7 +102,7 @@ defaults, abbreviations, timing limitations and the zero-output input diagnostic
 ## Source layout
 
 - `firmware/main.c`, `app.c`: application and transport integration.
-- `firmware/voice.c`, `clock.c`, `sync.c`: waveforms, rational phase timing and external sync.
+- `firmware/voice.c`, `clock.c`, `sync.c`, `cv.c`: waveforms, timing, external sync and CV routing.
 - `firmware/ui.c`, `font.c`: controls, display and original bitmap font.
 - `firmware/board.c`, `gate_bus.c`, `protocol.c`: peripheral and SPI/DAC handling.
 - `firmware/startup.c`, `runtime.c`, `divmod.S`, `stm32f042.ld`: MCU runtime/linker.
@@ -117,6 +118,9 @@ source/OUT1 rising-edge alignment, clock loss/reacquisition, Run GATE and Run RE
 See the [validation record](docs/validation.json) and
 [remaining bench checks](docs/synchronization.md#bench-acceptance-and-confirmed-results).
 Other PPQN settings have software coverage; calibrated hardware timing remains unmeasured.
+v0.3 CV input sampling/routing needs the [mapping and calibration bench pass](docs/cv.md#jack-mapping-and-calibration--bench-verification-needed).
+All routes default OFF. Input calibration and assignments are volatile; no stock
+EEPROM settings or calibration are read or overwritten.
 
 ## License and provenance
 

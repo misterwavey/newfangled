@@ -50,7 +50,7 @@ void sim_advance(uint32_t milliseconds) {
                 original_app_input(&app,NF_INPUT_CLOCK,us);generated_interval=1;
             }
         }
-        original_app_tick_at(&app,now*1000u);capture_gate();
+        original_app_cv(&app,cv[0],cv[1],3);original_app_tick_at(&app,now*1000u);capture_gate();
         bool dirty=original_ui_update(&ui,raw,now);
         if(dirty) {original_app_sync(&app);capture_gate();}
         dirty=original_app_refresh_ui(&app)||dirty;if(dirty)original_ui_render(&ui);
@@ -91,7 +91,10 @@ uint32_t sim_get(uint32_t index) {
     case 8:return clock_enabled;case 9:return clock_bpm;case 10:return clock_ppqn;
     case 11:return raw;case 12:return app.clock.running;case 13:return app.clock.phase;
     case 14:return app.clock.beats;case 15:return ui.reset_count;case 16:return edge_count;case 17:return ui.selecting;case 18:return ui.field;case 19:return ui.external;case 20:return nf_ppqn_values[ui.ppqn_index];
-    case 21:return ui.run_mode;case 22:return ui.sync_status;case 23:return ui.external_bpm;case 24:return app.sync.rejected;case 25:return ui.running;default:return 0;
+    case 21:return ui.run_mode;case 22:return ui.sync_status;case 23:return ui.external_bpm;case 24:return app.sync.rejected;case 25:return ui.running;case 26:return ui.cv_menu;case 27:return ui.cv_monitor;
+    case 28:return ui.cv_field;case 29:return ui.cv_target;case 30:return ui.cv_input;
+    case 31:return (uint32_t)ui.cv_normalized[0];case 32:return (uint32_t)ui.cv_normalized[1];
+    case 33:return ui.cv_valid;case 34:return ui.cv_swapped;default:return 0;
     }
 }
 uintptr_t sim_framebuffer(void) {return (uintptr_t)framebuffer;}
@@ -99,3 +102,14 @@ uint32_t sim_output(uint32_t index) {return index<8?app.output[index]:0u;}
 uint32_t sim_edge_count(void) {return edge_count;}
 uint32_t sim_edge_time(uint32_t index) {return index>=edge_count || edge_count-index>EDGE_CAPACITY?UINT32_MAX:edge_times[index%EDGE_CAPACITY];}
 uint32_t sim_edge_level(uint32_t index) {return index>=edge_count || edge_count-index>EDGE_CAPACITY?UINT32_MAX:edge_levels[index%EDGE_CAPACITY];}
+
+uint32_t sim_cv_route(uint32_t channel,uint32_t field,uint32_t item) {
+    if(channel>=8 || field>=NF_FIELDS)return 0;
+    NfCvRoute route=ui.routes[channel][field];
+    return item==0?route.source:item==1?(uint32_t)(int32_t)route.depth:item==2?(uint32_t)(int32_t)route.bias:0;
+}
+uint32_t sim_effective(uint32_t channel,uint32_t field) {
+    if(channel>=8 || field>=NF_FIELDS)return 0;
+    const NfConfig *c=&app.voices[channel].config;
+    unsigned values[]={c->ratio,c->shape,c->width,c->phase,c->level,c->offset};return values[field];
+}

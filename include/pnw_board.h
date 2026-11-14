@@ -33,7 +33,11 @@ void pnw_oled_flush(void);
 void pnw_oled_flush_page(unsigned page);
 void pnw_oled_number(unsigned x, unsigned value);
 uint8_t pnw_controls_raw(void); /* b0 PB6, b1 PB7 unchanged; b2 Program/PB5, b3 Start/PB4 normalized active low */
-uint16_t pnw_cv_raw(unsigned input); /* ADC8 PB0, ADC9 PB1: not calibrated volts */
+/* Cached ADC8/PB0 and ADC9/PB1 samples, not calibrated volts. service is
+ * nonblocking, called once per tick; each physical ADC channel samples at 500 Hz. */
+uint16_t pnw_cv_raw(unsigned input);
+unsigned pnw_cv_valid(void);
+void pnw_cv_service(void);
 bool pnw_clock_input(void); /* PA10 inverted: true means jack high */
 bool pnw_run_input(void); /* PA8 inverted: true means jack high */
 /* Conservative UART-free foreground expander signals, PA0 and PA2. */

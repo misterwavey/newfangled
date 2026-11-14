@@ -7,10 +7,10 @@ No EEPROM or stock preset storage is accessed.
 
 ## Settings and operation
 
-From the BPM page in VIEW mode, hold the encoder for 500 ms to open SYNC settings.
+From the BPM page in VIEW mode, hold the encoder for 500 ms to open SET settings.
 Turn to choose SRC, PPQN, or RUN. Click to edit, turn to change, and click to finish.
 Hold to return to the BPM page. Holding while editing first exits editing; open
-SYNC settings from the normal BPM VIEW page.
+SET settings from the normal BPM VIEW page.
 
 - **SRC INT:** original internal clock; click BPM to change its tempo.
 - **SRC EXT:** take tempo from Clk. The internal BPM setting is retained for
@@ -86,8 +86,8 @@ SRC to EXT and match its PPQN to the patch-bay clock generator. Enable External
 clock, click module Start, then click Play to advance virtual time. Run gate drives
 the Run jack in either GATE or RESET mode. The generator interpolates edge times
 within each millisecond to avoid turning PPQN rounding into artificial tempo error.
-CV assignment remains unimplemented. The simulator does not model ISR latency or
-analog circuitry. v0.1 action sessions are rejected because Home-hold navigation
+The CV controls added in v0.3 are described in [CV routing](cv.md). The simulator does not model ISR latency or
+analog circuitry. Older action sessions are rejected because Home-hold navigation
 has changed.
 
 ## Bench acceptance and confirmed results

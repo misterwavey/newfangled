@@ -11,6 +11,7 @@ typedef struct {NfConfig config;uint32_t phase,random;} NfVoice;
 extern const uint8_t nf_multipliers[NF_RATIOS],nf_divisors[NF_RATIOS];
 extern const char *const nf_ratio_names[NF_RATIOS],*const nf_shape_names[NF_SHAPES];
 void nf_voice_reset(NfVoice *voice,unsigned channel);
+void nf_voice_retime(NfVoice *voice,unsigned ratio);
 uint16_t nf_voice_value(const NfVoice *voice,bool running,unsigned bpm);
 void nf_voice_tick(NfVoice *voice,unsigned bpm);
 void nf_voice_advance(NfVoice *voice,unsigned step);

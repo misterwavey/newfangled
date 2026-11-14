@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Eight-output v0.2 application. The interrupt owns clock advancement; the
+ * Eight-output v0.3 application. The interrupt owns clock advancement; the
  * foreground owns UI/rendering. No EEPROM operations. External clock/Run edges are captured by EXTI.
  */
 #include "pnw_board.h"
@@ -13,7 +13,9 @@ static void publish_gate(void) {
     pnw_outputs_request(app.output);
 }
 void pnw_tick_hook(void) {
+    pnw_cv_service();
     if(!initialized)return;
+    original_app_cv(&app,pnw_cv_raw(0),pnw_cv_raw(1),pnw_cv_valid());
     uint32_t kind,us;
     while(pnw_input_take(&kind,&us))original_app_input(&app,kind,us);
     original_app_tick_at(&app,pnw_micros());publish_gate();
