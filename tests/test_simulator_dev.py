@@ -40,3 +40,12 @@ class SimulatorDevelopment(unittest.TestCase):
                 self.assertTrue(build.rebuild())
             page,status=build.snapshot();self.assertEqual(page,data);self.assertIsNone(status['error'])
             self.assertEqual(status['version'],hashlib.sha256(data).hexdigest())
+
+    def test_bia_build_uses_separate_builder_and_injects_reload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'build/bia-simulator').mkdir(parents=True)
+            data=b'<html><body>BIA controller</body></html>';(root/'build/bia-simulator/index.html').write_bytes(data)
+            build=dev.DevelopmentBuild(bia=True)
+            with patch.object(dev,'ROOT',root),patch.object(dev.subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout='',stderr='')) as run:
+                self.assertTrue(build.rebuild());self.assertIn('build_bia_simulator.py',run.call_args[0][0][1])
+            response=self.request(build,'/');self.assertIn(b'BIA controller',response.wfile.getvalue());self.assertIn(b'sessionStorage',response.wfile.getvalue())

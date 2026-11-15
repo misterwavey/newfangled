@@ -26,8 +26,8 @@ void pnw_outputs_request(const uint16_t codes[8]);
 void pnw_outputs_control(const uint16_t codes[8]); /* immediate eight-channel control update */
 void pnw_gate_service(void); /* nonblocking if foreground owns SPI */
 uint32_t pnw_gate_overruns(void);
-/* Preset callbacks are range-restricted to the final 8 KiB of internal flash.
- * Call only while disarmed/stopped; erase/program intentionally stall synthesis. */
+/* Preset callbacks are range-restricted to this application's SPI EEPROM
+ * partition. Call only while disarmed/stopped; no MCU flash writes occur. */
 bool pnw_preset_read(void *context,unsigned offset,void *data,unsigned length);
 bool pnw_preset_erase(void *context,unsigned bank);
 bool pnw_preset_program(void *context,unsigned offset,const void *data,unsigned length);
@@ -38,6 +38,10 @@ void pnw_oled_pixel(unsigned x, unsigned y, bool on);
 void pnw_oled_flush(void);
 void pnw_oled_flush_page(unsigned page);
 void pnw_oled_number(unsigned x, unsigned value);
+/* Timestamped 1 kHz control samples, captured independently of OLED work.
+ * Drain before rendering; discard after deliberate startup/preset stalls. */
+bool pnw_controls_take(uint8_t *raw,uint32_t *time);
+void pnw_controls_discard(void);
 uint8_t pnw_controls_raw(void); /* b0 PB6, b1 PB7 unchanged; b2 Program/PB5, b3 Start/PB4 normalized active low */
 /* Cached ADC8/PB0 and ADC9/PB1 samples, not calibrated volts. service is
  * nonblocking, called once per tick; each physical ADC channel samples at 500 Hz. */
@@ -51,6 +55,6 @@ void pnw_expander(bool run, bool clock);
 /* Optional expander UART: PA9 / USART1, 31250 baud. Foreground only. */
 bool pnw_midi_send(uint8_t byte);
 bool pnw_eeprom_read(uint16_t address, void *data, size_t length);
-/* Explicitly destructive to saved module data. No demo calls this. */
+/* Writes replace stock saved data in the addressed EEPROM pages. */
 bool pnw_eeprom_write(uint16_t address, const void *data, size_t length);
 #endif

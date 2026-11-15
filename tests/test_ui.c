@@ -81,7 +81,7 @@ int main(void) {
         unsigned x=page?119u:0u;
         for(unsigned y=0;y<9;++y)for(unsigned col=0;col<9;++col) {
             unsigned distance=y>4?y-4:4-y;
-            assert((framebuffer[y*128+x+col]!=0)==(!running || col<9u-2u*distance));
+            assert((framebuffer[y*128+x+col]!=0)==(running?col<9u-2u*distance:col<3u || col>=6u));
         }
     }
     ui.page=1;ui.selecting=true;
@@ -122,7 +122,7 @@ int main(void) {
     now+=30;(void)original_ui_update(&ui,11,now);(void)original_ui_update(&ui,11,now+20);
     (void)original_ui_update(&ui,11,now+520);now+=550;(void)original_ui_update(&ui,15,now);(void)original_ui_update(&ui,15,now+20);
     assert(!ui.cv_menu && !ui.selecting && !ui.editing && ui.page==1);
-    click(&ui,4,&now);for(unsigned i=0;i<15;++i)detent(&ui,-1);click(&ui,4,&now);assert(ui.cv_monitor);
+    click(&ui,4,&now);for(unsigned i=0;i<NF_OUTPUT_FIELDS-7;++i)detent(&ui,-1);click(&ui,4,&now);assert(ui.cv_monitor);
     ui.cv_raw_valid=3;ui.cv_valid=3;ui.cv_raw[0]=4095;ui.cv_normalized[0]=NF_CV_Q;original_ui_render(&ui);
     detent(&ui,1);assert(ui.cv_input==1);original_ui_render(&ui);
     original_ui_init(&ui,15,0);now=0;ui.selecting=true;ui.field=5;ui.cv_raw_valid=3;ui.cv_raw[0]=4000;

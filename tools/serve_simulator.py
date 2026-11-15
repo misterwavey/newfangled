@@ -30,22 +30,22 @@ RELOAD=r'''
 </script>
 '''
 def fingerprint():
-    paths=[ROOT/'tools/build_simulator.py',ROOT/'include/pnw_board.h']
+    paths=[ROOT/'tools/build_simulator.py',ROOT/'tools/build_bia_simulator.py',ROOT/'include/pnw_board.h']
     for folder in ['firmware','simulator']:
         paths.extend(p for p in (ROOT/folder).rglob('*') if p.suffix in ['.c','.h','.js','.css','.html'])
     digest=hashlib.sha256()
     for path in sorted(paths):digest.update(str(path.relative_to(ROOT)).encode());digest.update(path.read_bytes())
     return digest.hexdigest()
 class DevelopmentBuild:
-    def __init__(self):self.lock=threading.Lock();self.page=b'';self.version='';self.error=None;self.building=False
+    def __init__(self,bia=False):self.bia=bia;self.lock=threading.Lock();self.page=b'';self.version='';self.error=None;self.building=False
     def rebuild(self):
         with self.lock:self.building=True
-        result=subprocess.run([sys.executable,str(ROOT/'tools/build_simulator.py')],cwd=ROOT,capture_output=True,text=True)
+        result=subprocess.run([sys.executable,str(ROOT/('tools/build_bia_simulator.py' if self.bia else 'tools/build_simulator.py'))],cwd=ROOT,capture_output=True,text=True)
         with self.lock:
             self.building=False
             if result.returncode:self.error=(result.stderr or result.stdout)[-4000:];print(self.error,flush=True)
             else:
-                self.page=(ROOT/'build/simulator/index.html').read_bytes();self.version=hashlib.sha256(self.page).hexdigest();self.error=None
+                self.page=(ROOT/('build/bia-simulator/index.html' if self.bia else 'build/simulator/index.html')).read_bytes();self.version=hashlib.sha256(self.page).hexdigest();self.error=None
                 print('Simulator ready: '+self.version[:12],flush=True)
         return result.returncode==0
     def snapshot(self):
@@ -64,8 +64,8 @@ def handler_for(build):
         def log_message(self,*args):pass
     return Handler
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--port',type=int,default=8765);args=parser.parse_args()
-    build=DevelopmentBuild();seen=fingerprint()
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--port',type=int,default=8765);parser.add_argument('--bia',action='store_true');args=parser.parse_args()
+    build=DevelopmentBuild(args.bia);seen=fingerprint()
     if not build.rebuild():raise SystemExit('Initial simulator build failed.')
     server=ThreadingHTTPServer(('127.0.0.1',args.port),handler_for(build));stop=threading.Event()
     def watch():

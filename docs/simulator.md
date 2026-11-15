@@ -1,4 +1,6 @@
-# Newfangled v0.10 desktop simulator
+# Newfangled v0.11 desktop simulator
+
+See [v0.11 expansion](expansion.md) for current waveform, CV, logic, loop and preset changes.
 
 Run `make simulator-dev`, then open http://localhost:8765. Source changes rebuild
 and reload the page; no unzip step is needed. `make simulator` also produces an
@@ -9,8 +11,8 @@ independent ratios, gate/triangle/ramps/random shapes, width, phase, level and
 offset. On an output, click to browse parameters, turn to select one, click to
 edit its value, and click again to leave value editing. Hold encoder / Back (or
 Escape) performs the hardware 500 ms hold to return to output browsing.
-Output identity uses the large top row, with smaller VIEW/SELECT/EDIT labels. Transport uses a play triangle or stop
-square, right-aligned on output pages and left-aligned on the BPM page. The lower row shows both parameter name and value in large text. Offset
+Output identity uses the large top row, with smaller VIEW/SELECT/EDIT labels. Transport uses a play triangle or pause
+symbol, right-aligned on output pages and left-aligned on the BPM page. The lower row shows both parameter name and value in large text. Offset
 is OFFS; waveform names are shortened to GATE/TRI/RISE/FALL/RAND.
 See [module controls and limits](firmware.md). Click Play to advance
 virtual time and Start to run the module. These are independent controls.

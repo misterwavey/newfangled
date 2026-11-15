@@ -1,5 +1,7 @@
 #include "pnw_board.h"
 #include "gate_bus.h"
+#include "controls.h"
+static NfControlQueue control_samples;
 #define REG(a) (*(volatile uint32_t *)(uintptr_t)(a))
 #define A 0x48000000u
 #define B 0x48000400u
@@ -19,7 +21,7 @@ static void await_bits(uint32_t address,uint32_t mask,uint32_t value,unsigned st
 static struct {uint32_t kind,us;} input_events[16];
 static volatile uint32_t input_head,input_tail,input_overruns;
 uint32_t pnw_micros(void) {return REG(0x40000024u);}
-uint32_t pnw_input_overruns(void) {return input_overruns;}
+uint32_t pnw_input_overruns(void) {return input_overruns+control_samples.overruns;}
 static void input_push(uint32_t kind,uint32_t us) {
     uint32_t next=(input_head+1u)&15u;
     if(next==input_tail) {++input_overruns;return;}
@@ -69,7 +71,7 @@ uint32_t pnw_interrupt_lock(void) {
 }
 void pnw_interrupt_restore(uint32_t saved) {__asm volatile("msr primask, %0"::"r"(saved):"memory");}
 __attribute__((weak)) void pnw_tick_hook(void) {}
-void SysTick_Handler(void) {++ticks;pnw_tick_hook();pnw_gate_service();}
+void SysTick_Handler(void) {++ticks;nf_controls_push(&control_samples,pnw_controls_raw(),ticks);pnw_tick_hook();pnw_gate_service();}
 static bool bus_try_begin(void) {
     uint32_t saved=pnw_interrupt_lock();bool acquired=pnw_bus_acquire(&gate_bus);pnw_interrupt_restore(saved);return acquired;
 }
@@ -178,6 +180,14 @@ uint8_t pnw_controls_raw(void) {
     /* Rev 62 buttons are active high; present active-low logical controls to
        the portable UI. Encoder quadrature levels remain unchanged. */
     return (uint8_t)((((v>>6)&1)|(((v>>7)&1)<<1)|(((v>>5)&1)<<2)|(((v>>4)&1)<<3))^12u);
+}
+bool pnw_controls_take(uint8_t *raw,uint32_t *time) {
+    uint32_t saved=pnw_interrupt_lock();bool ready=nf_controls_take(&control_samples,raw,time);
+    pnw_interrupt_restore(saved);return ready;
+}
+void pnw_controls_discard(void) {
+    uint32_t saved=pnw_interrupt_lock();control_samples.tail=control_samples.head;control_samples.overruns=0;
+    pnw_interrupt_restore(saved);
 }
 bool pnw_clock_input(void) { return (REG(A+0x10)&(1u<<10))==0; }
 bool pnw_run_input(void) { return (REG(A+0x10)&(1u<<8))==0; }

@@ -46,8 +46,13 @@ static void lifecycle(void) {
     for(unsigned i=0;i<60;++i){p=settings(120+i);assert(nf_store_save(&s,i%8,&p)==NF_STORE_OK);}
     assert(erases>2);assert(nf_store_open(&s,io)==NF_STORE_OK && s.mask==255);
     for(unsigned slot=0;slot<8;++slot){assert(nf_store_load(&s,slot,&p)==NF_STORE_OK);unsigned expected=slot<4?176+slot:168+slot;assert(p.bpm==expected);}
+    /* A committed BIA bank also blocks generic Newfangled writes. */
+    unsigned foreign=(unsigned)s.bank*NF_BANK_BYTES;memcpy(media+foreign,"BIB1",4);uint32_t foreign_crc=nf_store_crc32(media+foreign,20);
+    for(unsigned i=0;i<4;++i)media[foreign+20+i]=(uint8_t)(foreign_crc>>(i*8));
+    assert(nf_store_open(&s,io)==NF_STORE_FUTURE);before=writes;assert(nf_store_save(&s,0,&p)==NF_STORE_FUTURE && writes==before);
+    memcpy(media+foreign,"NFB1",4);foreign_crc=nf_store_crc32(media+foreign,20);for(unsigned i=0;i<4;++i)media[foreign+20+i]=(uint8_t)(foreign_crc>>(i*8));assert(nf_store_open(&s,io)==NF_STORE_OK);
     /* A valid unknown schema blocks writes instead of destroying newer data. */
-    unsigned at=(unsigned)s.bank*NF_BANK_BYTES;media[at+4]=2;uint32_t crc=nf_store_crc32(media+at,20);for(unsigned i=0;i<4;++i)media[at+20+i]=(uint8_t)(crc>>(8*i));
+    unsigned at=(unsigned)s.bank*NF_BANK_BYTES;media[at+4]=99;uint32_t crc=nf_store_crc32(media+at,20);for(unsigned i=0;i<4;++i)media[at+20+i]=(uint8_t)(crc>>(8*i));
     assert(nf_store_open(&s,io)==NF_STORE_FUTURE);before=writes;assert(nf_store_save(&s,0,&p)==NF_STORE_FUTURE && writes==before);
 }
 static void cuts(bool compact) {
@@ -65,4 +70,26 @@ static void cuts(bool compact) {
         if(compact)for(unsigned slot=2;slot<8;++slot){assert(nf_store_load(&s,slot,&got)==NF_STORE_OK && got.bpm==120);}
     }
 }
-int main(void) {codec();lifecycle();cuts(false);cuts(true);puts("Preset codec, 8 slots, stopped-only lifecycle and 6428 power-cut boundaries passed.");}
+static void put16(uint8_t *p,unsigned n){p[0]=(uint8_t)n;p[1]=(uint8_t)(n>>8);}
+static void put32(uint8_t *p,uint32_t n){for(unsigned i=0;i<4;++i)p[i]=(uint8_t)(n>>(8*i));}
+static void migration(void) {
+    blank();uint8_t payload[NF_SETTINGS_BYTES];
+    for(unsigned i=0;i<8;++i) {
+        NfSettings old=settings(100+i);assert(nf_settings_encode(&old,payload));uint8_t *r=media+256*(i+1);
+        memcpy(r,"NFP1",4);put16(r+4,5);put16(r+6,230);r[8]=(uint8_t)i;put32(r+12,i+1);memcpy(r+16,payload,230);
+        put32(r+248,nf_store_crc32(r,248));put16(r+254,NF_RECORD_COMMIT);
+    }
+    memcpy(media,"NFB1",4);put16(media+4,1);put16(media+6,256);put32(media+8,3);put16(media+12,8);
+    put32(media+16,nf_store_crc32(media+256,8*256));put32(media+20,nf_store_crc32(media,20));put16(media+4094,NF_BANK_COMMIT);
+    memcpy(snapshot,media,sizeof media);NfStore s;NfSettings next=settings(179),got;next.extras[0]=(NfExtra){128,3,7};next.routes[0][9]=(NfCvRoute){2,-73,21};
+    unsigned limit=4096+8*NF_RECORD_BYTES+26;
+    for(unsigned cut=0;cut<=limit;++cut) {
+        memcpy(media,snapshot,sizeof media);budget=-1;assert(nf_store_open(&s,io)==NF_STORE_OK && s.record_bytes==256 && s.mask==255);
+        budget=(int)cut;NfStoreResult result=nf_store_save(&s,0,&next);budget=-1;
+        assert(!memcmp(media,snapshot,4096));assert(nf_store_open(&s,io)==NF_STORE_OK);
+        for(unsigned i=0;i<8;++i) {assert(nf_store_load(&s,i,&got)==NF_STORE_OK);assert(got.bpm==(i?100+i:result==NF_STORE_OK?179:100));}
+        if(result==NF_STORE_OK){assert(s.record_bytes==NF_RECORD_BYTES);assert(nf_store_load(&s,0,&got)==NF_STORE_OK && got.extras[0].loop_beats==128 && got.routes[0][9].depth==-73);}
+    }
+    puts("Legacy eight-slot migration: every interrupted erase/write boundary preserves all slots.");
+}
+int main(void) {codec();lifecycle();cuts(false);cuts(true);migration();puts("Preset codec, 8 slots, stopped-only lifecycle and append/compaction power-cut boundaries passed.");}

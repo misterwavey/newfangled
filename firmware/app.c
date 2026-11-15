@@ -3,8 +3,16 @@
 static void reset_voices(OriginalApp *a) {for(unsigned i=0;i<8;++i)nf_voice_reset(&a->voices[i],i);}
 static void values(OriginalApp *a,bool tick) {
     unsigned step=a->step?a->step:a->clock.bpm;
+    uint16_t raw[8];
+    for(unsigned i=0;i<8;++i)raw[i]=nf_voice_output(&a->voices[i],a->clock.running,step,tick);
     for(unsigned i=0;i<8;++i) {
-        uint16_t value=nf_voice_output(&a->voices[i],a->clock.running,step,tick);
+        NfExtra e=a->voices[i].extra;
+        uint16_t value=raw[i];
+        if(e.logic && a->clock.running) {
+            bool x=value!=0,y=raw[e.partner]!=0;
+            bool high=e.logic==1?(x&&y):e.logic==2?(x||y):(x!=y);
+            value=high?1023:0;
+        }
         a->output[i]=(a->muted&(1u<<i))?0:value;
     }
 }
@@ -21,6 +29,20 @@ static void cv_values(OriginalApp *a,unsigned manual_resets) {
         if(manual_resets&(1u<<i))nf_voice_reset(&a->voices[i],i);
         else nf_voice_retime(&a->voices[i],value[0]);
         a->voices[i].config=(NfConfig){value[0],value[1],value[2],value[3],value[4],value[5]};
+        NfVoice *v=&a->voices[i];NfRhythm r=a->ui.rhythms[i];NfGroove g=a->ui.grooves[i];
+        unsigned bases[]={r.hits,r.rotate,r.probability,g.swing};
+        unsigned prior[]={v->rhythm.hits,v->rhythm.rotate,v->rhythm.probability,v->groove.swing};
+        unsigned maxima[]={r.steps,r.steps-1u,100,50};uint8_t mod[4];
+        for(unsigned f=0;f<4;++f)mod[f]=(uint8_t)nf_cv_apply(&a->cv,&a->cv_plans[i][6+f],bases[f],prior[f],maxima[f],0,true);
+        r.hits=mod[0];r.rotate=mod[1];r.probability=mod[2];
+        if(v->rhythm.hits!=r.hits || v->rhythm.rotate!=r.rotate || v->rhythm.probability!=r.probability) {
+            v->rhythm=r;v->mask=nf_rhythm_mask(r);
+            /* Pattern membership takes effect now; probability is sampled next step. */
+            v->allowed=(v->mask&(1u<<v->index)) && (r.probability==100 || v->chance%100u<r.probability);
+        }
+        g.swing=mod[3];
+        if(v->groove.swing!=g.swing) {v->groove=g;/* Next tick normalizes phase against the new span. */}
+
     }
 }
 void original_app_cv(OriginalApp *a,unsigned adc0,unsigned adc1,unsigned valid) {
@@ -58,7 +80,11 @@ bool original_app_refresh_ui(OriginalApp *a) {
         }
         for(unsigned i=0;i<2;++i) {a->ui.cv_raw[i]=a->cv.raw[i];a->ui.cv_normalized[i]=a->cv.normalized[i];}
         a->ui.cv_raw_valid=a->cv.raw_valid;a->ui.cv_valid=a->cv.valid;
-        for(unsigned i=0;i<8;++i)a->ui.effective[i]=a->voices[i].config;
+        for(unsigned i=0;i<8;++i) {
+            a->ui.effective[i]=a->voices[i].config;
+            NfVoice *v=&a->voices[i];uint8_t actual[]={v->rhythm.hits,v->rhythm.rotate,v->rhythm.probability,v->groove.swing};
+            for(unsigned f=0;f<4;++f) {if(a->ui.page==i+1u && a->ui.effective_cv[i][f]!=actual[f])dirty=true;a->ui.effective_cv[i][f]=actual[f];}
+        }
     }
     return dirty;
 }
@@ -67,8 +93,8 @@ void original_app_init(OriginalApp *a,uint8_t raw,uint32_t now) {
     a->ppqn=nf_ppqn_values[a->ui.ppqn_index];nf_sync_init(&a->sync,a->ppqn);a->now_us=now*1000u;
     nf_cv_init(&a->cv);
     for(unsigned i=0;i<8;++i) {
-        a->base[i]=a->ui.outputs[i];a->voices[i].config=a->base[i];
-        for(unsigned f=0;f<NF_FIELDS;++f)a->cv_plans[i][f]=(NfCvPlan){.config=a->ui.routes[i][f],.gain=NF_CV_Q};
+        a->base[i]=a->ui.outputs[i];a->rhythm_base[i]=a->ui.rhythms[i];a->groove_base[i]=a->ui.grooves[i];a->voices[i].config=a->base[i];
+        for(unsigned f=0;f<NF_CV_FIELDS;++f)a->cv_plans[i][f]=(NfCvPlan){.config=a->ui.routes[i][f],.gain=NF_CV_Q};
     }
     reset_voices(a);values(a,false);(void)original_app_refresh_ui(a);
 }
@@ -87,11 +113,22 @@ void original_app_sync(OriginalApp *a) {
     for(unsigned i=0;i<8;++i) {
         if(a->base[i].ratio!=a->ui.outputs[i].ratio && !a->ui.routes[i][0].source)manual_resets|=1u<<i;
         if(a->output_reset_seen[i]!=a->ui.output_reset[i]) {manual_resets|=1u<<i;a->output_reset_seen[i]=a->ui.output_reset[i];}
-        a->base[i]=a->ui.outputs[i];nf_voice_rhythm(&a->voices[i],a->ui.rhythms[i]);nf_voice_groove(&a->voices[i],a->ui.grooves[i]);nf_voice_tone(&a->voices[i],a->ui.tones[i]);
-        for(unsigned field=0;field<NF_FIELDS;++field)nf_cv_plan(&a->cv_plans[i][field],a->ui.routes[i][field]);
+        a->voices[i].extra=a->ui.extras[i];
+        a->base[i]=a->ui.outputs[i];NfRhythm r=a->ui.rhythms[i];NfGroove g=a->ui.grooves[i];
+        const uint8_t *before=(const uint8_t *)&a->rhythm_base[i],*after=(const uint8_t *)&r;bool changed=false;
+        for(unsigned f=0;f<sizeof r;++f)if(before[f]!=after[f])changed=true;
+        if(changed) {nf_voice_rhythm(&a->voices[i],r);manual_resets|=1u<<i;a->rhythm_base[i]=r;}
+        if(a->groove_base[i].swing!=g.swing || a->groove_base[i].ratchet!=g.ratchet) {
+            nf_voice_groove(&a->voices[i],g);manual_resets|=1u<<i;a->groove_base[i]=g;
+        }nf_voice_tone(&a->voices[i],a->ui.tones[i]);
+        for(unsigned field=0;field<NF_CV_FIELDS;++field)nf_cv_plan(&a->cv_plans[i][field],a->ui.routes[i][field]);
     }
     nf_cv_configure(&a->cv,a->ui.cv_swapped,a->ui.calibration);nf_cv_normalize(&a->cv);cv_values(a,manual_resets);
-    for(unsigned i=0;i<8;++i)a->ui.effective[i]=a->voices[i].config;
+    for(unsigned i=0;i<8;++i) {
+            a->ui.effective[i]=a->voices[i].config;
+            NfVoice *v=&a->voices[i];uint8_t actual[]={v->rhythm.hits,v->rhythm.rotate,v->rhythm.probability,v->groove.swing};
+            for(unsigned f=0;f<4;++f) {a->ui.effective_cv[i][f]=actual[f];}
+        }
     transport(a);values(a,false);(void)original_app_refresh_ui(a);
 }
 void original_app_input(OriginalApp *a,unsigned kind,uint32_t us) {

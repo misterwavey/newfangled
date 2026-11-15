@@ -27,7 +27,7 @@ HITS=0 or PROB=0 produces silence. HITS=STEPS, PROB=100 passes every cycle.
 
 An accepted step plays the selected waveform for that cycle with the existing
 width, phase, level and offset controls. A rest or failed probability decision
-forces **zero volts**, including when offset is nonzero. This applies equally
+forces **zero volts**, including when offset is nonzero, except quantized random holds its last accepted pitch in v0.11. Otherwise this applies equally
 to gates, triangle, ramps and random voltage. Width retains its existing meaning
 for gates. Phase shifts the waveform within the cycle; it does not move the
 Euclidean step boundary. Nonzero phase can therefore produce discontinuities
@@ -88,3 +88,5 @@ separately; the simulator does not establish physical jitter or ADC calibration.
 
 In v0.6, [SWING and RATCH](groove.md) follow LOOP. Swing changes step duration
 without changing the Euclidean ordering or probability/loop decisions.
+
+Independent master-beat loops are available through BEATS in v0.11; see [beat loops](expansion.md#ratios-and-independent-beat-loops). They override pattern LOOP without changing its saved setting.

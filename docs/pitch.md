@@ -1,4 +1,4 @@
-# Random pitch and slew — v0.7
+# Random pitch and slew — v0.11
 
 RANDOM outputs can now produce notes and glide between them. After RATCH, each
 output’s parameter menu adds:
@@ -57,8 +57,7 @@ If another target arrives first, the glide restarts from its current position.
 This also works with SCL OFF for smooth, unquantized random modulation.
 
 The first accepted step after Start/reset is immediate. Stop, clock loss, Run
-closure and Euclidean/probability rests go straight to zero with no slew tail.
-After a rest, the next accepted target is immediate. Use another output’s gate
+closure force zero with no slew tail. Euclidean/probability rests hold quantized random pitch and let its glide finish; unquantized random still returns zero and its next accepted target is immediate. Use another output’s gate
 pattern to articulate an oscillator: a pitch output falling to zero alone does
 not silence the oscillator.
 
@@ -96,3 +95,7 @@ stable outputs against a reliable voltage reference and a tuned oscillator.
 Test ROOT and octave changes, then glide and Stop-to-zero. A measured output
 calibration pass is required before relying on tuning; none is silently invented
 from the existing input calibration or stock EEPROM data.
+
+## v0.11 rest behaviour
+
+Quantized random now holds the last accepted pitch across rests, letting a glide finish. Stop still forces zero. Unquantized random retains zero-on-rest. See [pitch hold](expansion.md#pitch-holds-across-rests).

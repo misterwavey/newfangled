@@ -1,4 +1,6 @@
-# Presets — v0.10
+# Presets — v0.11
+
+See [v0.11 expansion](expansion.md) for current waveform, CV, logic, loop and preset changes.
 
 Eight slots store the complete patch: tempo, clock source/PPQN, Run mode, eight
 output configurations and rhythm/probability/loop/swing/ratchet and random pitch/slew settings, all 48 CV routes, input swap and both calibration endpoint
@@ -25,90 +27,96 @@ With no valid saves, factory defaults apply. An interrupted save recovers either
 the previous valid patch or the completed new patch. Wait for completion before
 removing power. This software recovery does not replace hardware brownout tests.
 
-Saving performs flash programming/erase operations, so Save and Load require
-playback stopped. External acquisition is restarted after an operation, avoiding
-stale captured clock events. Re-arm Start after leaving the menu. Flash has finite
-write endurance: explicit saves avoid wearing it on every encoder movement.
+Saving and loading require stopped/disarmed playback. EEPROM writes use the
+shared SPI bus and take milliseconds; external clock acquisition is restarted
+after an operation. No automatic saves occur on knob changes.
 
-## Storage and updates
+## EEPROM storage and updates
 
-The STM32's first 24 KiB hold the application. The final 8 KiB,
-**0x08006000–0x08007fff**, belong exclusively to Newfangled presets.
-The linker and flash tool enforce the application boundary. Normal Newfangled
-DFU application updates leave those pages alone. Flashing stock firmware, a
-larger image or performing a mass erase can overwrite Newfangled presets.
-Export a backup before changing firmware families.
+The application now has the full **32 KiB MCU flash**. Presets use the Rev62's
+64 KiB SPI EEPROM, independently partitioned:
 
-**The external EEPROM is neither read nor written.** Stock presets/calibration
-there are preserved. No option bytes or ROM bootloader locations are written.
-The flash programming primitive executes from SRAM with interrupts masked while
-each page/halfword operation is busy; startup copies its code and literals from
-the application image. The primitive is range-gated by its callers and does no
-mass erase. ST specifies 1 KiB pages for STM32F042x6 in its
-[flash definitions](https://github.com/STMicroelectronics/stm32f0xx-hal-driver/blob/master/Inc/stm32f0xx_hal_flash_ex.h)
-and implements the halfword programming sequence in its
-[STM32F0 flash driver](https://github.com/STMicroelectronics/stm32f0xx-hal-driver/blob/master/Src/stm32f0xx_hal_flash.c).
+| Application | EEPROM addresses | Library |
+| --- | --- | --- |
+| Newfangled | 0x0000–0x1fff | Eight slots, two 4 KiB banks |
+| BIA controller | 0x2000–0x3fff | Eight slots, two 4 KiB banks |
+| Unallocated | 0x4000–0xffff | Not accessed by either library |
 
-Two 4 KiB banks alternate. Each has a versioned header and up to 14 append-only
-256-byte records. A record contains slot/sequence, an explicit 230-byte
-little-endian settings payload (v0.4/v0.5/v0.6/v0.7–v0.9 use 208/232/212/228 bytes), CRC32 and a final commit halfword. Uncommitted,
-corrupt or semantically invalid records are ignored. When full, the inactive bank
-is erased, seeded with the latest eight slots and sealed last. Its header includes
-a CRC over the checkpoint records, so even a host transfer that writes the footer
-early cannot activate an incomplete checkpoint. The previous bank remains intact
-until the next replacement. Sequence/generation comparisons support wraparound.
-Unsupported committed schemas block saving rather than erasing newer data.
+Each firmware reads/writes only its own partition. Switching between these two
+EEPROM-aware images preserves both libraries and their independent boot slots.
+Normal DFU application flashing does not write EEPROM. BIA's ERASE MEM command
+clears **only BIA's eight slots**; it preserves Newfangled.
 
-CRC32 detects accidental corruption; it is not an authentication mechanism.
-A damaged checkpoint can invalidate its bank and fall back to the older bank,
-losing more recent saves. JSON backups remain advisable.
+Stock presets/calibration in reclaimed EEPROM pages are deliberately replaced.
+No stock layout, factory calibration or preset migration is used. First boot
+reads existing data without formatting it; with no valid custom library it uses
+defaults. **The first explicit Save initializes that application's partition.**
+That is the point at which stock data there is overwritten. Returning to stock
+firmware does not restore stock presets; stock firmware may also overwrite ours.
+Use only the EEPROM-aware custom builds when preserving both custom libraries.
 
-## Portable JSON backups
+The existing transactional journal is retained: CRC-protected 384-byte records,
+334-byte payloads, sequence numbers and a final commit marker. Each bank has its
+own header, checkpoint CRC and final seal. Logical bank clearing writes FF to
+the inactive EEPROM bank; the active bank remains untouched until replacement
+is committed. Records and bank metadata occupy separate 128-byte pages, so an
+interrupted write cannot share a page with an earlier record. The driver splits
+writes at page boundaries, waits for completion and the adapter verifies every
+write by reading it back. Unsupported committed schemas still block saving.
+CRC is corruption detection, not authentication. Physical brownout behavior
+still needs bench testing.
 
-Browser **Export presets** downloads a readable JSON library; **Import presets**
-merges its slots into the simulated library and restarts the session stopped.
-Unsaved edits are excluded. Browser storage retains presets across reloads when
-available; a downloaded JSON file is the portable backup. Session recordings
-include their initial preset library for deterministic replay. The simulator uses
-the actual C journal with an in-memory flash model; it does not emulate flash
-latency, endurance or electrical power loss.
+## Upgrading from internal-flash presets
 
-The same JSON can move between simulator and hardware. Put the module into DFU
-mode, disconnect Eurorack power/expanders and connect USB only. From the repository:
+**Existing internal-flash custom presets are not automatically copied to EEPROM.**
+Before installing an EEPROM build, use the old firmware's DFU export:
 
 ```sh
-# Read only; creates a new file, refusing to overwrite an existing backup.
-python3 tools/presets.py --serial FFFFFFFEFFFF --export my-presets.json
-
-# Read-only import preview, then explicit import.
-python3 tools/presets.py --serial FFFFFFFEFFFF --import my-presets.json
-python3 tools/presets.py --serial FFFFFFFEFFFF --import my-presets.json --write
+python3 tools/presets.py --serial FFFFFFFEFFFF --export pnw-before-eeprom.json
+# If the installed firmware is BIA instead:
+python3 tools/presets.py --bia --serial FFFFFFFEFFFF --export bia-before-eeprom.json
 ```
 
-The tool requires the storage-enabled Newfangled identity in the installed
-application. It refuses stock/older firmware. Import validates the entire file,
-merges slots, backs up the previous library to `build/backups/`, writes only the
-inactive 4 KiB bank, then verifies the entire 8 KiB area including the unchanged
-old bank. The backup's `boot_slot` becomes the new boot patch. It exports only
-validated settings, never residual code or arbitrary bytes from the region.
-Disconnect USB before reconnecting Eurorack power.
+Retain that JSON and the old firmware if you need its presets. Current images
+may use the former flash preset area as code; do not rely on its contents after
+updating. The legacy tool can import the JSON only while the corresponding old
+internal-flash firmware is installed. It does not transfer EEPROM presets.
+Recreate/save required patches in the new build; a hardware EEPROM JSON transfer
+interface is not implemented yet.
+
+## Portable JSON and USB limitations
+
+Browser Export/Import still saves and restores simulated libraries, using the
+same settings payload and JSON schemas as before. Browser persistence is local
+to the simulator; it does not synchronize with the module.
+
+STM32 ROM USB DFU accesses MCU memory, **not the external SPI EEPROM**. The existing
+`tools/presets.py` is now a legacy internal-flash tool and explicitly refuses new
+EEPROM identities before accessing the old flash area. Do not use a raw DFU
+upload of that area as an EEPROM backup. Hardware EEPROM export/import is a
+separate follow-up; for now use the module's eight Save/Load slots per firmware.
 
 ## Validation
 
-Software checks cover the codec, eight slots, repeated bank rotations, schema
-protection, stopped-only operations, every byte interruption boundary in an append
-and a bank replacement, host/C/browser format compatibility, native/WASM parity,
-boot restoration, session replay and DFU tool range/identity/readback behavior.
-The built ARM image checks SRAM placement of the flash primitive, identity,
-vectors, application bounds and absence of EEPROM functions.
+`make test-eeprom` runs both real C journals and the real partition adapter
+against one shared 64 KiB EEPROM model. It covers eight-slot independence,
+alternating firmware saves, bank replacements, boot-slot restoration, own-library
+clear, range rejection, and interrupted writes that corrupt the entire target
+page. It also checks that the legacy USB tool refuses EEPROM images and that
+only EEPROM-aware application images can use all 32 KiB of MCU flash.
 
-Physical flash Save/Load, cold power-on, interrupted-save recovery and preservation
-across an application update remain **unbench-tested** in v0.4. First bench pass:
-save distinct tempi in slots 1 and 8, change settings without saving, power-cycle,
-load both, confirm stopped outputs, then export/import and check again. Keep the
-known-working restore image and export presets before testing interrupted power.
-CV voltage calibration still awaits a reliable reference; presets do not change
-that requirement.
+Existing codec, interrupted-journal, browser/native/WASM and UI tests remain.
+ARM artifact checks prove matching EEPROM identities and linked EEPROM drivers,
+with no internal-flash programming routine. **EEPROM persistence is not yet
+bench-validated.** First check Save/Load and cold restart in each build, then
+switch builds twice and confirm that both libraries survive. Test interrupted
+power only after ordinary persistence works.
+
+## Historical internal-flash format notes
+
+The following version notes describe the earlier internal-flash releases. Their
+settings payload compatibility still applies; flash reservation and EEPROM
+preservation statements below refer to those historical builds only.
 
 ## v0.4 compatibility
 
@@ -172,3 +180,7 @@ still not persisted. Loading alone never writes a migration; explicit Save or
 Import writes the current format. Eight slots, bank layout, 8 KiB reservation,
 CRC/commit recovery and the external EEPROM policy are unchanged. Use current
 tools before downgrading; old firmware cannot interpret schema 5 records.
+
+## v0.11 storage migration
+
+See [expansion compatibility](expansion.md#presets-and-compatibility). New payload bytes 0–229 preserve schema 5, bytes 230–301 contain four additional packed 18-bit CV routes per output, and bytes 302–333 contain each output’s little-endian 16-bit beat interval, logic selector and zero-based partner. New bank container version 2 uses 384-byte records (CRC at 376, commit at 382). Firmware reads old 256-byte banks and migrates occupied slots transactionally on first Save.

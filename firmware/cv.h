@@ -6,10 +6,10 @@
 #define NF_CV_Q 32768
 #define NF_CV_CONTROLS 5u
 #define NF_GLOBAL_FIELDS 10u
-#define NF_OUTPUT_FIELDS 22u
-#define NF_MUTE_FIELD 19u
-#define NF_COPY_FIELD 20u
-#define NF_CLEAR_FIELD 21u
+#define NF_OUTPUT_FIELDS 25u
+#define NF_MUTE_FIELD 22u
+#define NF_COPY_FIELD 23u
+#define NF_CLEAR_FIELD 24u
 typedef struct {uint8_t source;int8_t depth,bias;} NfCvRoute;
 typedef struct {uint16_t zero,positive;} NfCvCalibration;
 typedef struct {NfCvRoute config;int32_t gain,offset;} NfCvPlan;

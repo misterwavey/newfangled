@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
- * Eight-output v0.10 application. The interrupt owns clock advancement; the
- * foreground owns UI/rendering. No EEPROM operations; explicit stopped-only presets use reserved internal flash. External clock/Run edges are captured by EXTI.
+ * Eight-output v0.11 application. The interrupt owns clock advancement; the
+ * foreground owns UI/rendering. Explicit stopped-only presets use a dedicated external EEPROM partition. External clock/Run edges are captured by EXTI.
  */
 #include "pnw_board.h"
 #include "app.h"
@@ -42,13 +42,17 @@ int main(void) {
     uint32_t saved=pnw_interrupt_lock();
     original_app_init(&app,pnw_controls_raw(),pnw_millis());pnw_interrupt_restore(saved);
     NfStoreIo io={0,pnw_preset_read,pnw_preset_erase,pnw_preset_program};
-    (void)nf_store_open(&presets,io);(void)nf_presets_boot(&presets,&app.ui);
+    if(nf_store_open(&presets,io)==NF_STORE_IO)app.ui.preset_status=NF_PRESET_IO;
+    else (void)nf_presets_boot(&presets,&app.ui);
     saved=pnw_interrupt_lock();original_app_sync(&app);pnw_inputs_discard();initialized=true;
     pnw_outputs_request(app.output);pnw_interrupt_restore(saved);pnw_gate_service();
     original_ui_render(&app.ui);pnw_oled_flush();
+    pnw_controls_discard();
     unsigned page=4;
     for(;;) {
-        bool dirty=original_ui_update(&app.ui,pnw_controls_raw(),pnw_millis());
+        bool dirty=false;uint8_t controls;uint32_t sampled_at;
+        while(pnw_controls_take(&controls,&sampled_at))
+            dirty=original_ui_update(&app.ui,controls,sampled_at)||dirty;
         saved=pnw_interrupt_lock();
         dirty=original_app_refresh_ui(&app)||dirty;pnw_interrupt_restore(saved);
         if((pnw_gate_overruns() || pnw_input_overruns()) && !app.ui.timing_fault) {app.ui.timing_fault=true;dirty=true;}
@@ -64,6 +68,7 @@ int main(void) {
             if(disarmed) {nf_sync_init(&app.sync,app.ppqn);app.reset_input=false;pnw_inputs_discard();}
             pnw_outputs_control(app.output);pnw_interrupt_restore(saved);pnw_gate_service();
             original_ui_render(&app.ui);page=0;
+            pnw_controls_discard();
         }
         if(page<4)pnw_oled_flush_page(page++);
     }

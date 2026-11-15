@@ -3,7 +3,7 @@
 Newfangled now supports explicit internal/external source selection, matching
 pulses per quarter note (PPQN), and OFF/GATE/RESET modes for the Run jack.
 Settings remain in RAM: boot defaults are **INT, 24 PPQN, Run OFF, stopped**.
-No EEPROM or stock preset storage is accessed.
+Synchronization does not access storage. Explicit Save/Load uses the application’s EEPROM partition, replacing stock preset data there.
 
 ## Settings and operation
 
@@ -26,7 +26,7 @@ SET settings from the normal BPM VIEW page.
   Holding Run high does not repeatedly reset. Reset never starts disarmed playback.
 
 Start toggles the armed state. The play triangle reflects actual playback, so
-an armed module waiting for clock or Run permission shows a stop square. The BPM
+an armed module waiting for clock or Run permission shows a pause symbol. The BPM
 footer reports EXT WAIT, EXT LOCK, EXT LOST, EXT ARMED, or RUN LOW. In EXT the
 EXT ARMED confirms Start is armed while waiting for an edge; Run GATE low reports
 RUN LOW. The browser Start button reads DISARM during this wait. The

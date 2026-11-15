@@ -2,10 +2,10 @@
  * Independently authored unipolar 10-bit waveforms on a 1 kHz timebase.
  */
 #include "voice.h"
-const uint8_t nf_multipliers[NF_RATIOS]={1,1,1,1,1,1,2,3,4,8,16};
-const uint8_t nf_divisors[NF_RATIOS]={16,8,4,3,2,1,1,1,1,1,1};
-const char *const nf_ratio_names[NF_RATIOS]={"/16","/8","/4","/3","/2","X1","X2","X3","X4","X8","X16"};
-const char *const nf_shape_names[NF_SHAPES]={"GATE","TRIANGLE","RAMP UP","RAMP DOWN","RANDOM"};
+const uint8_t nf_multipliers[NF_RATIOS]={1,1,1,1,1,1,2,3,4,8,16,1,1,1,1,1,2,3,4,3,6,12,24,32,48,5,6,7,12,24};
+const uint16_t nf_divisors[NF_RATIOS]={16,8,4,3,2,1,1,1,1,1,1,32,64,128,256,512,3,2,3,4,1,1,1,1,1,1,5,1,5,5};
+const char *const nf_ratio_names[NF_RATIOS]={"/16","/8","/4","/3","/2","X1","X2","X3","X4","X8","X16","/32","/64","/128","/256","/512","X2/3","X3/2","X4/3","X3/4","X6","X12","X24","X32","X48","X5","X6/5","X7","X12/5","X24/5"};
+const char *const nf_shape_names[NF_SHAPES]={"GATE","TRIANGLE","RAMP UP","RAMP DOWN","RANDOM","SINE","ENVELOPE"};
 const char *const nf_scale_names[NF_SCALES]={"OFF","CHROM","MAJOR","MINOR","DORIAN","MAJPNT","MINPNT"};
 const char *const nf_note_names[12]={"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
 /* Scale degrees relative to ROOT; no vendor lookup data. */
@@ -35,6 +35,12 @@ void nf_voice_tone(NfVoice *v,NfTone tone) {
     if(v->tone.scale==tone.scale && v->tone.root==tone.root && v->tone.range==tone.range && v->tone.slew==tone.slew)return;
     v->tone=tone;v->slew_primed=false;v->slew_remaining=0;
 }
+static uint32_t fraction(uint32_t n,uint32_t d) {
+    uint32_t result=0;if(n>=d)n%=d;
+    if(n<=4194303u)return n*1024u/d;
+    for(unsigned i=0;i<10;++i) {n*=2u;result*=2u;if(n>=d){n-=d;++result;}}
+    return result;
+}
 static uint32_t period(const NfVoice *v) {return 60000u*nf_divisors[v->config.ratio];}
 static uint32_t cycle_span(const NfVoice *v) {
     uint32_t base=period(v),delay=600u*nf_divisors[v->config.ratio]*v->groove.swing;
@@ -63,7 +69,7 @@ static void decide(NfVoice *v) {
     v->allowed=(v->mask&(1u<<v->index)) && (v->rhythm.probability==100 || v->chance%100u<v->rhythm.probability);
 }
 static void restart(NfVoice *v) {
-    v->slew_primed=false;v->slew_remaining=0;v->phase=0;v->swing_odd=false;v->index=0;v->random=v->seed;v->chance=v->seed^0xa511e9b3u;decide(v);
+    v->pitch_held=false;v->held_pitch=0;v->loop_phase=0;v->slew_primed=false;v->slew_remaining=0;v->phase=0;v->swing_odd=false;v->index=0;v->random=v->seed;v->chance=v->seed^0xa511e9b3u;decide(v);
 }
 void nf_voice_reset(NfVoice *v,unsigned channel) {
     if(!v->rhythm.steps)v->rhythm=NF_RHYTHM_DEFAULT;
@@ -84,17 +90,24 @@ void nf_voice_groove(NfVoice *v,NfGroove g) {
 }
 void nf_voice_retime(NfVoice *v,unsigned ratio) {
     if(ratio==v->config.ratio)return;
-    uint32_t position=v->phase*1024u/cycle_span(v);
-    v->config.ratio=(uint8_t)ratio;v->phase=position*cycle_span(v)/1024u;
+    uint32_t position=fraction(v->phase,cycle_span(v));
+    v->config.ratio=(uint8_t)ratio;v->phase=position*(cycle_span(v)/1024u)+position*(cycle_span(v)%1024u)/1024u;
 }
 void nf_voice_tick(NfVoice *v,unsigned bpm) {nf_voice_advance(v,bpm);}
 void nf_voice_advance(NfVoice *v,unsigned step) {
+    if(v->extra.loop_beats) {
+        uint32_t length=60000u*v->extra.loop_beats;
+        v->loop_phase+=step;
+        if(v->loop_phase>=length) {
+            uint32_t remainder=v->loop_phase%length;restart(v);v->loop_phase=remainder;step=remainder;
+        }
+    }
     uint32_t span=cycle_span(v);v->phase+=step*nf_multipliers[v->config.ratio];
     while(v->phase>=span) {
         v->phase-=span;v->swing_odd=!v->swing_odd;
         if(++v->index>=v->rhythm.steps) {
             v->index=0;
-            if(v->rhythm.loop) {v->random=v->seed;v->chance=v->seed^0xa511e9b3u;}
+            if(v->rhythm.loop && !v->extra.loop_beats) {v->random=v->seed;v->chance=v->seed^0xa511e9b3u;}
             else v->random=random_next(v->random);
         } else v->random=random_next(v->random);
         decide(v);span=cycle_span(v);
@@ -103,10 +116,27 @@ void nf_voice_advance(NfVoice *v,unsigned step) {
 uint16_t nf_voice_value(const NfVoice *v,bool running,unsigned bpm) {
     if(!running || !v->allowed)return 0;
     uint32_t span=cycle_span(v),phase=v->phase+(span/100u)*v->config.phase;
-    if(phase>=span)phase-=span;
-    uint32_t p=phase*1024u/span,raw;
+    if(phase>=span)phase%=span;
+    /* Divide before multiplying: /512 phases can exceed 30 million. */
+    uint32_t p=fraction(phase,span),raw;
+    unsigned skew=v->config.width*1024u/100u;
+    unsigned triangle=p<skew?p*1023u/skew:(1024u-p)*1023u/(1024u-skew);
     switch(v->config.shape) {
-    case 1:raw=p<512u?p*2u:(1023u-p)*2u;break;
+    case 1:raw=v->config.width==50?(p<512u?p*2u:(1023u-p)*2u):triangle;break;
+    case 5: {
+        /* Bhaskara sine approximation, independently calculated (no table).
+           A quarter-cycle shift starts at zero. WIDTH skews the two halves. */
+        unsigned t=triangle+512u,x=t%1024u;uint32_t product=x*(1024u-x);
+        unsigned sine=16u*product*1023u/(5u*1024u*1024u-4u*product);
+        raw=t<1024u?(1023u-sine)/2u:(1023u+sine)/2u;break;
+    }
+    case 6: {
+        /* Fast attack followed by a curved release, WIDTH sets release length. */
+        unsigned end=skew,attack=16;
+        if(p<attack)raw=p*1023u/attack;
+        else if(p<attack+end) {uint32_t x=(attack+end-p)*1023u/end;raw=x*x/1023u;}
+        else raw=0;break;
+    }
     case 2:raw=p;break;
     case 3:raw=1023u-p;break;
     case 4:raw=v->random&1023u;break;
@@ -129,7 +159,12 @@ uint16_t nf_voice_value(const NfVoice *v,bool running,unsigned bpm) {
 /* Only tick calls move the slew. Foreground refresh/configuration is timeless. */
 uint16_t nf_voice_output(NfVoice *v,bool running,unsigned bpm,bool tick) {
     uint16_t target=nf_voice_value(v,running,bpm);
-    if(!running || !v->allowed || v->config.shape!=4 || !v->tone.slew) {
+    bool holding=running && v->config.shape==4 && v->tone.scale;
+    if(holding) {
+        if(v->allowed) {v->held_pitch=target;v->pitch_held=true;}
+        else target=v->pitch_held?v->held_pitch:0;
+    } else v->pitch_held=false;
+    if(!running || (!v->allowed && !holding) || v->config.shape!=4 || !v->tone.slew) {
         v->slew_primed=false;v->slew_remaining=0;v->slew_position=(int32_t)target*65536;return target;
     }
     if(!v->slew_primed) {

@@ -1,14 +1,14 @@
-# CV routing — v0.3
+# CV routing — v0.11
 
-Every output parameter has an independent CV assignment: **48 routes** covering
-Ratio, Shape, Width, Phase, Level and Offset on all eight outputs. A route selects
+Ten output parameters have independent CV assignments: **80 routes** covering
+Ratio, Shape, Width, Phase, Level, Offset, Hits, Rotation, Probability and Swing on all eight outputs. A route selects
 OFF, CV1, or CV2, with signed depth and bias. All routes boot **OFF**, so v0.2
-output and synchronization behavior remain the defaults. No EEPROM is accessed.
+output and synchronization behavior remain the defaults. CV processing does not access EEPROM; explicit presets use the application’s EEPROM partition.
 
 ## Controls
 
 From an output's parameter-selection view, turn to **CV SETUP** after Offset;
-click to open it. You can also turn anticlockwise twice from Ratio to reach it.
+click to open it. Browse clockwise from Ratio past Offset to reach it.
 Turn to select a control, click to edit, turn to change, then click to finish:
 
 - **DEST:** the parameter whose assignment you are editing.
@@ -116,3 +116,7 @@ compared across the actual CV UI gestures, input changes, all 48 effective value
 route settings, framebuffers and output traces. The browser interaction tests
 exercise the existing sliders against the shared engine. Software tests do not
 establish physical ADC mapping, volts, modulation latency or hardware jitter.
+
+## v0.11 destinations
+
+HITS, ROT, PROB and SWING join the six original destinations; see [expanded CV semantics](expansion.md#more-cv-destinations). Every destination has its own source, depth and bias.

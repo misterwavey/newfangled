@@ -3,6 +3,15 @@
  * transactional; record CRC + final halfword make each append transactional.
  */
 #include "store.h"
+#ifdef BIA_BUILD
+#define RECORD_MAGIC "BIP1"
+#define BANK_MAGIC "BIB1"
+#define FOREIGN_MAGIC "NFB1"
+#else
+#define RECORD_MAGIC "NFP1"
+#define BANK_MAGIC "NFB1"
+#define FOREIGN_MAGIC "BIB1"
+#endif
 static unsigned u16(const uint8_t *p) {return p[0]|((unsigned)p[1]<<8);}
 static uint32_t u32(const uint8_t *p) {return p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
 static void p16(uint8_t *p,unsigned v) {p[0]=(uint8_t)v;p[1]=(uint8_t)(v>>8);}
@@ -19,40 +28,47 @@ static bool read_at(NfStore *s,unsigned offset,void *p,unsigned n) {return offse
 static bool program_at(NfStore *s,unsigned offset,const void *p,unsigned n) {
     return !(offset&1u) && !(n&1u) && offset<=NF_STORE_BYTES && n<=NF_STORE_BYTES-offset && s->io.program(s->io.context,offset,p,n);
 }
-static unsigned address(unsigned bank,unsigned record) {return bank*NF_BANK_BYTES+(record+1u)*NF_RECORD_BYTES;}
+static unsigned address(unsigned bank,unsigned record,unsigned bytes) {return bank*NF_BANK_BYTES+(record+1u)*bytes;}
 static bool record_valid(NfStore *s,NfSettings *settings) {
     uint8_t *p=s->buffer;
-    if(!magic(p,"NFP1") || u16(p+254)!=NF_RECORD_COMMIT || u32(p+248)!=nf_store_crc32(p,248))return false;
+    unsigned bytes=s->record_bytes;
+    if(!magic(p,RECORD_MAGIC) || u16(p+bytes-2)!=NF_RECORD_COMMIT || u32(p+bytes-8)!=nf_store_crc32(p,bytes-8))return false;
     unsigned schema=u16(p+4),length=u16(p+6);
-    if(schema!=1 && schema!=2 && schema!=3 && schema!=4 && schema!=NF_RECORD_SCHEMA) {s->future=true;return false;}
-    if((schema==1?length!=NF_LEGACY_SETTINGS_BYTES:schema==2?length!=NF_V5_SETTINGS_BYTES:schema==3?length!=NF_V6_SETTINGS_BYTES:schema==4?length!=NF_V7_SETTINGS_BYTES:length!=NF_SETTINGS_BYTES) || p[8]>=NF_PRESET_SLOTS)return false;
+    if(length>bytes-24u)return false;
+    if(schema!=1 && schema!=2 && schema!=3 && schema!=4 && schema!=5 && schema!=6 && schema!=NF_RECORD_SCHEMA) {s->future=true;return false;}
+    if((schema==1?length!=NF_LEGACY_SETTINGS_BYTES:schema==2?length!=NF_V5_SETTINGS_BYTES:schema==3?length!=NF_V6_SETTINGS_BYTES:schema==4?length!=NF_V7_SETTINGS_BYTES:schema==5?length!=NF_V10_SETTINGS_BYTES:length!=NF_SETTINGS_BYTES) || p[8]>=NF_PRESET_SLOTS)return false;
+#ifdef BIA_BUILD
+    if((schema==6 && p[19]!=1) || (schema==7 && p[19]!=2))return false;
+#endif
     return nf_settings_decode_size(settings,p+16,length);
 }
 static int bank_valid(NfStore *s,unsigned bank,uint32_t *generation) {
     unsigned base=bank*NF_BANK_BYTES;uint8_t header[24],footer[2];
     if(!read_at(s,base,header,24) || !read_at(s,base+NF_BANK_BYTES-2,footer,2))return -1;
-    if(!magic(header,"NFB1") || u16(footer)!=NF_BANK_COMMIT || u32(header+20)!=nf_store_crc32(header,20))return 0;
-    if(u16(header+4)!=NF_STORE_SCHEMA) {s->future=true;return 0;}
+    if(magic(header,FOREIGN_MAGIC) && u16(footer)==NF_BANK_COMMIT && u32(header+20)==nf_store_crc32(header,20)) {s->future=true;return 0;}
+    if(!magic(header,BANK_MAGIC) || u16(footer)!=NF_BANK_COMMIT || u32(header+20)!=nf_store_crc32(header,20))return 0;
+    if(u16(header+4)!=1 && u16(header+4)!=NF_STORE_SCHEMA) {s->future=true;return 0;}
     unsigned count=u16(header+12);
-    if(u16(header+6)!=NF_RECORD_BYTES || count>NF_PRESET_SLOTS)return 0;
+    unsigned bytes=u16(header+6);
+    if((bytes!=256 && bytes!=NF_RECORD_BYTES) || count>NF_PRESET_SLOTS || (u16(header+4)==1)!=(bytes==256))return 0;
     uint32_t crc=0xffffffffu;
-    for(unsigned i=0;i<count;++i) {if(!read_at(s,address(bank,i),s->buffer,NF_RECORD_BYTES))return -1;crc=crc_update(crc,s->buffer,NF_RECORD_BYTES);}
+    for(unsigned i=0;i<count;++i) {if(!read_at(s,address(bank,i,bytes),s->buffer,bytes))return -1;crc=crc_update(crc,s->buffer,bytes);}
     if(~crc!=u32(header+16))return 0;
     *generation=u32(header+8);return 1;
 }
 NfStoreResult nf_store_open(NfStore *s,NfStoreIo io) {
-    *s=(NfStore){.io=io,.bank=-1};
+    *s=(NfStore){.io=io,.bank=-1,.record_bytes=NF_RECORD_BYTES};
     if(!io.read || !io.erase || !io.program)return NF_STORE_IO;
     for(unsigned bank=0;bank<2;++bank) {
         uint32_t generation=0;int valid=bank_valid(s,bank,&generation);
         if(valid<0)return NF_STORE_IO;
-        if(valid && (s->bank<0 || newer(generation,s->generation))) {s->bank=(int8_t)bank;s->generation=generation;}
+        if(valid && (s->bank<0 || newer(generation,s->generation))) {s->bank=(int8_t)bank;s->generation=generation;uint8_t size[2];if(!read_at(s,bank*NF_BANK_BYTES+6,size,2))return NF_STORE_IO;s->record_bytes=(uint16_t)u16(size);}
     }
     if(s->bank<0)return s->future?NF_STORE_FUTURE:NF_STORE_EMPTY;
     NfSettings scratch;bool found=false;
-    for(unsigned i=0;i<NF_BANK_RECORDS;++i) {
-        unsigned at=address((unsigned)s->bank,i);
-        if(!read_at(s,at,s->buffer,NF_RECORD_BYTES))return NF_STORE_IO;
+    for(unsigned i=0;i<(s->record_bytes==256?14u:NF_BANK_RECORDS);++i) {
+        unsigned at=address((unsigned)s->bank,i,s->record_bytes);
+        if(!read_at(s,at,s->buffer,s->record_bytes))return NF_STORE_IO;
         if(!record_valid(s,&scratch))continue;
         unsigned slot=s->buffer[8];uint32_t sequence=u32(s->buffer+12);
         if(!(s->mask&(1u<<slot)) || newer(sequence,s->slot_sequence[slot])) {
@@ -65,18 +81,18 @@ NfStoreResult nf_store_open(NfStore *s,NfStoreIo io) {
 NfStoreResult nf_store_load(NfStore *s,unsigned slot,NfSettings *settings) {
     if(slot>=NF_PRESET_SLOTS)return NF_STORE_INVALID;
     if(!(s->mask&(1u<<slot)))return NF_STORE_EMPTY;
-    if(!read_at(s,s->slot_address[slot],s->buffer,NF_RECORD_BYTES))return NF_STORE_IO;
+    if(!read_at(s,s->slot_address[slot],s->buffer,s->record_bytes))return NF_STORE_IO;
     return record_valid(s,settings) && s->buffer[8]==slot?NF_STORE_OK:NF_STORE_CORRUPT;
 }
 static bool make_record(NfStore *s,unsigned slot,uint32_t sequence,const NfSettings *settings) {
     fill(s->buffer,NF_RECORD_BYTES);uint8_t *p=s->buffer;
-    p[0]='N';p[1]='F';p[2]='P';p[3]='1';p16(p+4,NF_RECORD_SCHEMA);p16(p+6,NF_SETTINGS_BYTES);p[8]=(uint8_t)slot;p32(p+12,sequence);
+    for(unsigned i=0;i<4;++i)p[i]=(uint8_t)RECORD_MAGIC[i];p16(p+4,NF_RECORD_SCHEMA);p16(p+6,NF_SETTINGS_BYTES);p[8]=(uint8_t)slot;p32(p+12,sequence);
     if(!nf_settings_encode(settings,p+16))return false;
-    p32(p+248,nf_store_crc32(p,248));p16(p+254,NF_RECORD_COMMIT);return true;
+    p32(p+NF_RECORD_BYTES-8,nf_store_crc32(p,NF_RECORD_BYTES-8));p16(p+NF_RECORD_BYTES-2,NF_RECORD_COMMIT);return true;
 }
 static bool write_record(NfStore *s,unsigned at) {
-    if(!program_at(s,at,s->buffer,254))return false;
-    return program_at(s,at+254,s->buffer+254,2);
+    if(!program_at(s,at,s->buffer,NF_RECORD_BYTES-2))return false;
+    return program_at(s,at+NF_RECORD_BYTES-2,s->buffer+NF_RECORD_BYTES-2,2);
 }
 NfStoreResult nf_store_save(NfStore *s,unsigned slot,const NfSettings *settings) {
     if(slot>=NF_PRESET_SLOTS)return NF_STORE_INVALID;
@@ -84,9 +100,9 @@ NfStoreResult nf_store_save(NfStore *s,unsigned slot,const NfSettings *settings)
     if(opened==NF_STORE_IO || s->future)return s->future?NF_STORE_FUTURE:NF_STORE_IO;
     if(!nf_settings_encode(settings,s->buffer))return NF_STORE_INVALID;
     uint32_t sequence=s->sequence+1u;
-    if(s->bank>=0) {
-        for(unsigned i=0;i<NF_BANK_RECORDS;++i) {
-            unsigned at=address((unsigned)s->bank,i);bool erased=true;
+    if(s->bank>=0 && s->record_bytes==NF_RECORD_BYTES) {
+        for(unsigned i=0;i<(s->record_bytes==256?14u:NF_BANK_RECORDS);++i) {
+            unsigned at=address((unsigned)s->bank,i,s->record_bytes);bool erased=true;
             if(!read_at(s,at,s->buffer,NF_RECORD_BYTES))return NF_STORE_IO;
             for(unsigned j=0;j<NF_RECORD_BYTES;++j)if(s->buffer[j]!=255) {erased=false;break;}
             if(!erased)continue;
@@ -103,13 +119,15 @@ NfStoreResult nf_store_save(NfStore *s,unsigned slot,const NfSettings *settings)
         if(index==slot) {if(!make_record(s,slot,sequence,settings))return NF_STORE_INVALID;}
         else {
             if(!(s->mask&(1u<<index)))continue;
-            if(!read_at(s,s->slot_address[index],s->buffer,NF_RECORD_BYTES))return NF_STORE_IO;
+            if(!read_at(s,s->slot_address[index],s->buffer,s->record_bytes))return NF_STORE_IO;
             NfSettings check;if(!record_valid(s,&check) || s->buffer[8]!=index)return NF_STORE_CORRUPT;
+            uint32_t prior_sequence=u32(s->buffer+12);
+            if(!make_record(s,index,prior_sequence,&check))return NF_STORE_INVALID;
         }
         crc=crc_update(crc,s->buffer,NF_RECORD_BYTES);
-        if(!write_record(s,address(target,count++)))return NF_STORE_IO;
+        if(!write_record(s,address(target,count++,NF_RECORD_BYTES)))return NF_STORE_IO;
     }
-    uint8_t header[24];fill(header,24);header[0]='N';header[1]='F';header[2]='B';header[3]='1';
+    uint8_t header[24];fill(header,24);for(unsigned i=0;i<4;++i)header[i]=(uint8_t)BANK_MAGIC[i];
     p16(header+4,NF_STORE_SCHEMA);p16(header+6,NF_RECORD_BYTES);p32(header+8,generation);p16(header+12,count);
     p32(header+16,~crc);p32(header+20,nf_store_crc32(header,20));
     if(!program_at(s,target*NF_BANK_BYTES,header,24))return NF_STORE_IO;

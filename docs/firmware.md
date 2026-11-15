@@ -1,4 +1,6 @@
-# Pam’s Newfangled Workout v0.10
+# Pam’s Newfangled Workout v0.11
+
+See [v0.11 expansion](expansion.md) for current waveform, CV, logic, loop and preset changes.
 
 Eight independently configured unipolar outputs on ALM017 Rev 62. Boots stopped;
 Stop parks every output at zero. This is an early, independently authored application
@@ -9,11 +11,11 @@ using the existing board SDK. No stock binary is needed to build it.
 - Global tempo: 10–300 BPM; Start/Stop and phase reset.
 - Internal/external clock source, 1–48 PPQN options, Run gate/reset input modes.
   See [synchronization settings and behavior](synchronization.md).
-- Ratios per output: ÷16, ÷8, ÷4, ÷3, ÷2, ×1, ×2, ×3, ×4, ×8, ×16.
-- Shapes: gate, triangle, rising ramp, falling ramp, stepped random.
+- Ratios per output: 30 choices, ÷512 through ×48, including fractional factors.
+- Shapes: gate, triangle, rising ramp, falling ramp, stepped random, sine and envelope.
 - Gate width: 1–99%; phase: 0–99%; level and positive offset: 0–100%.
 - Nominal voltage range: 0–5 V; level plus offset clips at full scale.
-- Independent CV1/CV2 routing, signed depth and bias for each output parameter;
+- Independent CV1/CV2 routing, signed depth and bias for ten parameters per output;
   raw input monitor, mapping swap and 0 V/+5 V calibration (persisted with an explicit preset SAVE). See [CV guide](cv.md).
 - Portable C engine, UI and manually authored font shared with the included browser simulator.
 
@@ -26,6 +28,15 @@ to gate/triangle/ramp position; random changes stay on the channel cycle boundar
 ## Controls
 
 Turn clockwise to browse Home → OUT1 → … → OUT8 → Home.
+Encoder and button levels are sampled at 1 kHz in SysTick, independently of OLED
+rendering. A timestamped 31-sample backlog preserves click/turn ordering while
+the foreground is busy. Both applications use the shared detent decoder in
+`firmware/controls.h`: complete paths generate one turn, bounce retraces cancel,
+and incomplete paths re-anchor at the resting detent. Queue overflow reports a
+timing fault. Startup and stopped preset operations discard their stale samples.
+This replaces foreground-only input polling; verify the first notch after a
+click in both directions on hardware after flashing.
+
 On Home in INT mode, press the encoder to enter/leave tempo editing; turn to change BPM.
 On an output, click the encoder to open parameter browsing; turn to choose Ratio,
 Shape, Width, Phase, Level or Offset. Click to edit the selected value; turn to
@@ -34,11 +45,11 @@ change it. Click again to return to parameter browsing. Hold the encoder for
 changes applied and its release does not generate an extra click. Short encoder
 clicks take effect on release so they are distinct from holds.
 The top row shows OUT1–OUT8 in large text, plus VIEW/SELECT/EDIT mode. A filled
-play triangle or stop square indicates transport, right-aligned on output pages
+play triangle or pause symbol indicates transport, right-aligned on output pages
 and left-aligned on the BPM page.
 The lower row shows the parameter name and value together in large text, such as
-RATIO X2 or WIDTH 50%. Offset is abbreviated OFFS; waveform names are GATE, TRI,
-RISE, FALL and RAND to fit the display. VIEW means turn to change outputs; SELECT
+RAT X2 or WIDTH 50%. Offset is abbreviated OFFS; waveform names are GATE, TRI,
+RISE, FALL, RAND, SINE and ENV to fit the display. VIEW means turn to change outputs; SELECT
 means turn to choose a parameter; EDIT means turn to change its value. Start arms/disarms transport in any page.
 Hold the encoder and press Start to reset phase without changing transport;
 this also leaves editing. Hold the encoder on BPM VIEW to open SET settings. Output parameter browsing
@@ -54,9 +65,10 @@ python3 tools/flash.py --write --serial FFFFFFFEFFFF --image build/newfangled/pn
 ```
 
 Flash with USB only and Eurorack power/expanders disconnected. Disconnect USB,
-then reconnect normal Eurorack power to test. The build reserves 24 KiB application flash and 8 KiB preset flash, and checks the
-6 KiB RAM limit, reserving 1 KiB for stack. No EEPROM operations are linked.
-Eight full-patch presets use internal flash; see [Save/Load and backups](presets.md).
+then reconnect normal Eurorack power to test. The build allows 32 KiB of application flash and checks the 6 KiB RAM limit,
+reserving 1 KiB for stack. Presets use this firmware’s dedicated SPI EEPROM
+partition; the other application’s library is preserved. See [presets](presets.md).
+Eight full-patch presets use external SPI EEPROM; see [Save/Load and backups](presets.md).
 MIDI and expander output are not implemented. Unsaved CV assignments/calibration are RAM-only.
 
 ## Timing and hardware acceptance
@@ -64,7 +76,7 @@ MIDI and expander output are not implemented. Unsaved CV assignments/calibration
 The interrupt advances the engine at 1 kHz. In INT, each channel adds BPM × multiplier
 into an integer phase with period 60000 × divisor. This avoids accumulating
 rounded beat periods. Edges and analog steps are quantized to 1 ms; maximum
-nominal cycle rate is 80 Hz. EXT uses rational advances with bounded phase correction;
+nominal cycle rate is 240 Hz. EXT uses rational advances with bounded phase correction;
 see [synchronization](synchronization.md). Gate width is clamped to at least one tick high and one tick
 low at fast ratios. At these rates some width values therefore sound identical.
 This is a modulation engine, not a high-resolution audio oscillator.
@@ -114,7 +126,7 @@ mapping was informed by reverse engineering; this is not a clean-room claim.
 ## Rhythms and probability — v0.5
 
 Output parameter selection adds STEPS, HITS, ROT, PROB and LOOP after CV MON.
-These filter complete waveform cycles; rests force zero even with offset set.
+These filter complete waveform cycles; rests force zero even with offset set, except quantized random holds its last accepted pitch.
 See [rhythms and repeatable random patterns](rhythms.md) for controls, timing,
 reset/edit behavior and examples. CV routing still targets the six waveform
 parameters. Presets store the new rhythm settings, with v0.4 load compatibility.

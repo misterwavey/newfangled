@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export/import Newfangled preset JSON over USB DFU. Never accesses EEPROM."""
+"""Legacy internal-flash preset JSON over USB DFU. Does not support EEPROM firmware."""
 import argparse
 import datetime
 import json
@@ -16,8 +16,13 @@ def main():
     commands.add_argument('--export',dest='export_file',type=Path)
     commands.add_argument('--import',dest='import_file',type=Path)
     parser.add_argument('--serial',required=True)
+    parser.add_argument('--bia',action='store_true',help='BIA controller preset format and device identity')
     parser.add_argument('--write',action='store_true',help='Permit importing presets; default is read-only preview')
     a=parser.parse_args();exe=shutil.which('dfu-util')
+    if a.bia:import bia_format as backend
+    else:import preset_format as backend
+    BASE,BANK_BYTES,STORE_BYTES=backend.BASE,backend.BANK_BYTES,backend.STORE_BYTES
+    scan,library,validate,bank_image=backend.scan,backend.library,backend.validate,backend.bank_image
     if not exe:parser.error('Install dfu-util first')
     if a.write and not a.import_file:parser.error('--write is only for import')
     selection=[exe,'-d','0483:df11','-S',a.serial,'-a','0']
@@ -35,8 +40,10 @@ def main():
             if len(b)!=length:raise ValueError('Incomplete DFU read')
             return b
         identity=upload(0x080000c0,16,'identity.bin')
-        if identity!=b'NFPRES01'+struct.pack('<II',BASE,STORE_BYTES):
-            raise ValueError('Device is not storage-enabled Newfangled. Refusing preset access.')
+        if identity[:8] in (b'NFEEPR01',b'BIEEPR01'):
+            raise ValueError('This firmware stores presets in external EEPROM. ROM DFU cannot access it; this tool supports legacy internal-flash firmware only.')
+        if identity!=(b'BIPRES01' if a.bia else b'NFPRES01')+struct.pack('<II',BASE,STORE_BYTES):
+            raise ValueError('Device identity does not match the selected firmware format. Refusing preset access.')
         before=upload(BASE,STORE_BYTES,'before.bin');state=scan(before)
         if state['future']:raise ValueError('Newer storage schema present; use matching firmware/tools')
         if a.export_file:

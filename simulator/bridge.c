@@ -121,14 +121,14 @@ uint32_t sim_edge_time(uint32_t index) {return index>=edge_count || edge_count-i
 uint32_t sim_edge_level(uint32_t index) {return index>=edge_count || edge_count-index>EDGE_CAPACITY?UINT32_MAX:edge_levels[index%EDGE_CAPACITY];}
 
 uint32_t sim_cv_route(uint32_t channel,uint32_t field,uint32_t item) {
-    if(channel>=8 || field>=NF_FIELDS)return 0;
+    if(channel>=8 || field>=NF_CV_FIELDS)return 0;
     NfCvRoute route=ui.routes[channel][field];
     return item==0?route.source:item==1?(uint32_t)(int32_t)route.depth:item==2?(uint32_t)(int32_t)route.bias:0;
 }
 uint32_t sim_effective(uint32_t channel,uint32_t field) {
-    if(channel>=8 || field>=NF_FIELDS)return 0;
+    if(channel>=8 || field>=NF_CV_FIELDS)return 0;
     const NfConfig *c=&app.voices[channel].config;
-    unsigned values[]={c->ratio,c->shape,c->width,c->phase,c->level,c->offset};return values[field];
+    unsigned values[]={c->ratio,c->shape,c->width,c->phase,c->level,c->offset,app.voices[channel].rhythm.hits,app.voices[channel].rhythm.rotate,app.voices[channel].rhythm.probability,app.voices[channel].groove.swing};return values[field];
 }
 
 uintptr_t sim_settings_buffer(void) {return (uintptr_t)settings_buffer;}
@@ -160,3 +160,8 @@ uint32_t sim_pitch(uint32_t channel,uint32_t item) {
 }
 
 uint32_t sim_muted(uint32_t channel) {return channel<8?(ui.muted>>channel)&1u:0u;}
+
+uint32_t sim_extra(uint32_t channel,uint32_t item) {
+    if(channel>=8)return 0;NfExtra e=ui.extras[channel];
+    return item==0?e.loop_beats:item==1?e.logic:item==2?e.partner:item==3?app.voices[channel].loop_phase:0;
+}

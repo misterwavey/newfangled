@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: MIT
+/* LEGACY ONLY: not linked by current EEPROM builds.
+ * SPDX-License-Identifier: MIT
  * Only 0x08006000..0x08007fff is writable. No EEPROM/option-byte access.
  */
 #include "pnw_board.h"
@@ -6,7 +7,11 @@
 #define WORD(a) (*(volatile uint32_t *)(uintptr_t)(a))
 __attribute__((section(".nf_identity"),used))
 const struct {uint8_t magic[8];uint32_t base,size;} nf_storage_identity={
+    #ifdef BIA_BUILD
+    {'B','I','P','R','E','S','0','1'},NF_STORE_FLASH_BASE,NF_STORE_BYTES
+#else
     {'N','F','P','R','E','S','0','1'},NF_STORE_FLASH_BASE,NF_STORE_BYTES
+#endif
 };
 /* Executed from SRAM: all literals and waits remain available while flash is
  * busy. The linker includes this section in the startup data copy. */

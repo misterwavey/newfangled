@@ -17,7 +17,7 @@ import presets as cli
 
 def default_patch(bpm=173):
     route=dict(source='CV2',depth=-100,bias=50)
-    output=dict(pitch=dict(scale='MINOR PENTATONIC',root='F#',octaves=3,slew_ms=740),groove=dict(swing=37,ratchet=7),rhythm=dict(steps=13,hits=5,rotate=11,probability=73,loop=True),ratio='X3',shape='RANDOM',width=27,phase=11,level=83,offset=5,cv={name:dict(route) for name in fmt.FIELDS})
+    output=dict(pitch=dict(scale='MINOR PENTATONIC',root='F#',octaves=3,slew_ms=740),groove=dict(swing=37,ratchet=7),rhythm=dict(steps=13,hits=5,rotate=11,probability=73,loop=True),ratio='X3',shape='RANDOM',width=27,phase=11,level=83,offset=5,extra=dict(loop_beats=0,logic='OFF',partner=1),cv={name:dict(route) if name in fmt.FIELDS else dict(source='OFF',depth=100,bias=0) for name in fmt.FIELDS+fmt.EXTRA_FIELDS})
     outputs=[copy.deepcopy(output) for _ in range(8)]
     for i in range(8):outputs[i]['muted']=bool(0xa5&(1<<i))
     for i in range(7):
@@ -31,7 +31,7 @@ class Format(unittest.TestCase):
         media=bank+b'\xff'*4096;state=fmt.scan(media);self.assertEqual(state['boot_slot'],1);self.assertEqual(state['sequence'],0)
         newer=fmt.bank_image(state['slots'],8,0,0)
         state2=fmt.scan(bank+newer);self.assertEqual(state2['bank'],1);self.assertEqual(state2['boot_slot'],8)
-        for at in [0,16,20,256+16,512+16,4094]:
+        for at in [0,16,20,384+16,768+16,4094]:
             damaged=bytearray(newer);damaged[at]^=1
             self.assertEqual(fmt.scan(bank+damaged)['bank'],0)
         self.assertEqual(fmt.validate(fmt.library(state2)),state2['slots'])
@@ -90,11 +90,11 @@ NfSettings p;unsigned char out[NF_SETTINGS_BYTES];nf_settings_capture(&ui,&p);as
         current=fmt.decode(old)
         self.assertEqual(current['outputs'][7]['rhythm'],dict(steps=1,hits=1,rotate=0,probability=100,loop=False))
         backup=dict(format='newfangled-presets',version=1,boot_slot=3,slots=[dict(slot=3,patch=patch)])
-        upgraded=fmt.validate(backup)[3];self.assertEqual(len(upgraded),230)
+        upgraded=fmt.validate(backup)[3];self.assertEqual(len(upgraded),334)
         self.assertEqual(fmt.decode(upgraded),current)
         state=fmt.scan(fmt.bank_image({3:old,8:upgraded},3,1,0)+b'\xff'*4096)
-        self.assertFalse(state['future']);self.assertEqual(state['slots'][3],old)
-        self.assertEqual(fmt.library(state)['version'],5)
+        self.assertFalse(state['future']);self.assertEqual(state['slots'][3],fmt.encode(fmt.decode(old)))
+        self.assertEqual(fmt.library(state)['version'],6)
         patch=default_patch()
         for o in patch['outputs']:o.pop('groove')
         v5=dict(format='newfangled-presets',version=2,boot_slot=2,slots=[dict(slot=2,patch=patch)])

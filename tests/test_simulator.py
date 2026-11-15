@@ -33,6 +33,7 @@ class SimulatorParity(unittest.TestCase):
             core.sim_output.argtypes=[ctypes.c_uint32];core.sim_output.restype=ctypes.c_uint32
             core.sim_get.argtypes=[ctypes.c_uint32];core.sim_get.restype=ctypes.c_uint32
             core.sim_cv_route.argtypes=[ctypes.c_uint32]*3;core.sim_cv_route.restype=ctypes.c_uint32
+            core.sim_extra.argtypes=[ctypes.c_uint32]*2;core.sim_extra.restype=ctypes.c_uint32
             core.sim_pitch.argtypes=[ctypes.c_uint32]*2;core.sim_pitch.restype=ctypes.c_uint32
             core.sim_groove.argtypes=[ctypes.c_uint32]*2;core.sim_groove.restype=ctypes.c_uint32
             core.sim_rhythm.argtypes=[ctypes.c_uint32]*2;core.sim_rhythm.restype=ctypes.c_uint32
@@ -77,6 +78,6 @@ class SimulatorParity(unittest.TestCase):
                 kind=action['type'];name={'advance':'sim_advance','turn':'sim_turn','click':'sim_click','input':'sim_input','raw':'sim_raw','hold':'sim_hold_program','reset':'sim_reset','reboot':'sim_reboot'}[kind]
                 args=[] if kind in ['hold','reset','reboot'] else [action['index'],action['value']] if kind=='input' else [action['value']]
                 getattr(core,name)(*args)
-                fixtures.append(dict(action=action,pitch=[[core.sim_pitch(i,k) for k in range(6)] for i in range(8)],grooves=[[core.sim_groove(i,k) for k in range(4)] for i in range(8)],rhythms=[[core.sim_rhythm(i,k) for k in range(8)] for i in range(8)],outputs=[core.sim_output(i) for i in range(8)],effective=[[core.sim_effective(i,f) for f in range(6)] for i in range(8)],routes=[[[core.sim_cv_route(i,f,k) for k in range(3)] for f in range(6)] for i in range(8)],state=[core.sim_get(i) for i in range(48)],edges=[[core.sim_edge_time(i),core.sim_edge_level(i)] for i in range(max(0,core.sim_edge_count()-2048),core.sim_edge_count())],framebuffer=base64.b64encode(ctypes.string_at(core.sim_framebuffer(),512)).decode()))
+                fixtures.append(dict(action=action,extras=[[core.sim_extra(i,k) for k in range(4)] for i in range(8)],pitch=[[core.sim_pitch(i,k) for k in range(6)] for i in range(8)],grooves=[[core.sim_groove(i,k) for k in range(4)] for i in range(8)],rhythms=[[core.sim_rhythm(i,k) for k in range(8)] for i in range(8)],outputs=[core.sim_output(i) for i in range(8)],effective=[[core.sim_effective(i,f) for f in range(10)] for i in range(8)],routes=[[[core.sim_cv_route(i,f,k) for k in range(3)] for f in range(10)] for i in range(8)],state=[core.sim_get(i) for i in range(48)],edges=[[core.sim_edge_time(i),core.sim_edge_level(i)] for i in range(max(0,core.sim_edge_count()-2048),core.sim_edge_count())],framebuffer=base64.b64encode(ctypes.string_at(core.sim_framebuffer(),512)).decode()))
             path=Path(directory)/'fixtures.json';path.write_text(json.dumps(fixtures))
             subprocess.run([node,str(ROOT/'tests/simulator_wasm.mjs'),str(wasm),str(path)],check=True)

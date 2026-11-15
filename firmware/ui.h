@@ -17,15 +17,16 @@ typedef struct {
     unsigned field;
     NfConfig outputs[8];
     uint32_t output_reset[8];
+    NfExtra extras[8];
     NfRhythm rhythms[8];NfGroove grooves[8];NfTone tones[8];
     bool selecting,program_consumed;
     uint32_t program_at;
     bool external,active,run_high;
     uint8_t ppqn_index,run_mode,sync_status;
     unsigned external_bpm;
-    NfCvRoute routes[8][NF_FIELDS];
+    NfCvRoute routes[8][NF_CV_FIELDS];
     NfCvCalibration calibration[2];
-    NfConfig effective[8];
+    NfConfig effective[8];uint8_t effective_cv[8][4];
     uint16_t cv_raw[2];int32_t cv_normalized[2];
     uint8_t cv_valid,cv_raw_valid,cv_field,cv_target,cv_input;
     bool cv_menu,cv_monitor,cv_swapped;

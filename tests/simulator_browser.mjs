@@ -117,7 +117,7 @@ const decision=sim.core.sim_rhythm(0,6);sim.perform({type:'advance',ms:Math.ceil
 assert.equal(sim.core.sim_rhythm(0,5),1);assert.equal(sim.core.sim_rhythm(0,6),decision);$('start').click();
 $('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
 $('reset').click();assert.deepEqual(Array.from({length:5},(_,i)=>sim.core.sim_rhythm(0,i)),[8,3,1,50,1]);
-const rhythmBackup=plain(sim.exportPresets());assert.equal(rhythmBackup.version,5);assert.equal(rhythmBackup.slots[1].patch.outputs[0].rhythm.hits,3);
+const rhythmBackup=plain(sim.exportPresets());assert.equal(rhythmBackup.version,6);assert.equal(rhythmBackup.slots[1].patch.outputs[0].rhythm.hits,3);
 sim.replay(plain(sim.session()));assert.deepEqual(plain(sim.exportPresets()),rhythmBackup);
 // Old JSON imports retain pre-rhythm behavior without changing CV calibration.
 const legacy=plain(saved);legacy.version=1;legacy.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.rhythm));
@@ -147,7 +147,7 @@ const milliseconds=sim.core.sim_get(0),remaining=sim.core.sim_pitch(0,5);$('expo
 $('start').click();assert(sim.state().outputs.every(v=>v===0));assert.equal(sim.core.sim_pitch(0,4),255);
 $('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
 $('reset').click();assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[2,1,2,200]);
-const pitchBackup=plain(sim.exportPresets());assert.equal(pitchBackup.version,5);assert.deepEqual(pitchBackup.slots[1].patch.outputs[0].pitch,{scale:'MAJOR',root:'C#',octaves:2,slew_ms:200});
+const pitchBackup=plain(sim.exportPresets());assert.equal(pitchBackup.version,6);assert.deepEqual(pitchBackup.slots[1].patch.outputs[0].pitch,{scale:'MAJOR',root:'C#',octaves:2,slew_ms:200});
 const invalidPitch=plain(pitchBackup);invalidPitch.slots[1].patch.outputs[0].pitch.slew_ms=21;
 assert.throws(()=>sim.importPresets(invalidPitch));assert.deepEqual(plain(sim.exportPresets()),pitchBackup);
 const oldV6=plain(pitchBackup);oldV6.version=3;oldV6.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.pitch));sim.importPresets(oldV6);
@@ -155,7 +155,7 @@ assert.deepEqual(Array.from({length:4},(_,i)=>sim.core.sim_pitch(0,i)),[0,0,1,0]
 console.log('Pitch/slew controls, target notes, glide, Stop, preset replay and v0.6 migration passed.');
 // Clear OUT1 while running; cancelling does nothing and saved slots stay intact.
 const beforeClearLibrary=plain(sim.exportPresets());$('start').click();$('right').click();$('encoder').click();$('left').click();
-assert.equal(sim.core.sim_get(18),21);$('encoder').click();assert.equal(sim.core.sim_get(42),1);assert.equal(sim.core.sim_get(43),0);
+assert.equal(sim.core.sim_get(18),24);$('encoder').click();assert.equal(sim.core.sim_get(42),1);assert.equal(sim.core.sim_get(43),0);
 $('encoder').click();assert.equal(sim.core.sim_get(42),0);assert.equal(sim.core.sim_effective(0,4),100);
 $('encoder').click();$('right').click();$('back').click();assert.equal(sim.core.sim_get(42),0);assert.equal(sim.core.sim_effective(0,4),100);
 $('encoder').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();
@@ -176,7 +176,7 @@ const copyLibrary=plain(sim.exportPresets()),copyPatch=copyLibrary.slots.find(s=
 Object.assign(copyPatch.outputs[0],{ratio:'X3',shape:'RANDOM',width:27,phase:12,level:83,offset:5,rhythm:{steps:13,hits:9,rotate:3,probability:75,loop:true},groove:{swing:33,ratchet:4},pitch:{scale:'MINOR',root:'D#',octaves:3,slew_ms:100}});
 for(const field of ['ratio','shape','width','phase','level','offset'])copyPatch.outputs[0].cv[field]={source:'CV2',depth:-73,bias:21};
 copyPatch.outputs[1].level=17;sim.importPresets(copyLibrary);
-const libraryBeforeCopy=plain(sim.exportPresets());$('start').click();$('right').click();$('encoder').click();$('left').click();$('left').click();assert.equal(sim.core.sim_get(18),20);
+const libraryBeforeCopy=plain(sim.exportPresets());$('start').click();$('right').click();$('encoder').click();$('left').click();$('left').click();assert.equal(sim.core.sim_get(18),23);
 $('encoder').click();assert.equal(sim.core.sim_get(44),1);assert.equal(sim.core.sim_get(45),1);$('encoder').click();assert.equal(sim.core.sim_get(44),2);assert.equal(sim.core.sim_get(46),0);
 $('encoder').click();assert.equal(sim.core.sim_get(44),0);assert.equal(sim.core.sim_effective(1,4),17);
 $('encoder').click();$('back').click();assert.equal(sim.core.sim_get(44),0);assert.equal(sim.state().selecting,false);
@@ -193,14 +193,32 @@ for(let i=2;i<8;i++)assert.deepEqual(savedCopy.outputs[i],copyPatch.outputs[i]);
 console.log('Output copy: target/confirmation, cancel, full settings, source preservation, replay and explicit Save passed.');
 // Reversible mute keeps playback moving, and saves per-output state.
 const beforeMuteLibrary=plain(sim.exportPresets());$('start').click();$('right').click();$('encoder').click();$('left').click();$('left').click();$('left').click();
-assert.equal(sim.core.sim_get(18),19);$('encoder').click();assert.equal(sim.core.sim_muted(0),1);assert.match($('scopes').children[0].querySelector('span').textContent,/MUTED/);assert.equal(sim.core.sim_output(0),0);assert.equal(sim.state().editing,false);assert.equal(sim.state().running,true);
+assert.equal(sim.core.sim_get(18),22);$('encoder').click();assert.equal(sim.core.sim_muted(0),1);assert.match($('scopes').children[0].querySelector('span').textContent,/MUTED/);assert.equal(sim.core.sim_output(0),0);assert.equal(sim.state().editing,false);assert.equal(sim.state().running,true);
 const phaseBeforeMute=sim.core.sim_get(13);sim.perform({type:'advance',ms:777});assert.notEqual(sim.core.sim_get(13),phaseBeforeMute);assert.equal(sim.core.sim_output(0),0);assert.equal(sim.core.sim_muted(1),0);
 assert.deepEqual(plain(sim.exportPresets()),beforeMuteLibrary);
 $('encoder').click();assert.equal(sim.core.sim_muted(0),0);$('encoder').click();assert.equal(sim.core.sim_muted(0),1);
 const mutedSession=plain(sim.session()),mutedState=plain(sim.state());sim.replay(mutedSession);assert.deepEqual(plain(sim.state()),mutedState);assert.equal(sim.core.sim_muted(0),1);
 $('back').click();$('start').click();$('left').click();$('back').click();$('left').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_get(38),2);
 $('reset').click();assert.equal(sim.core.sim_muted(0),1);assert.equal(sim.core.sim_output(0),0);
-const mutedLibrary=plain(sim.exportPresets());assert.equal(mutedLibrary.version,5);const mutedPatch=mutedLibrary.slots.find(s=>s.slot===mutedLibrary.boot_slot).patch;assert.equal(mutedPatch.outputs[0].muted,true);assert.equal(mutedPatch.outputs[1].muted,false);
+const mutedLibrary=plain(sim.exportPresets());assert.equal(mutedLibrary.version,6);const mutedPatch=mutedLibrary.slots.find(s=>s.slot===mutedLibrary.boot_slot).patch;assert.equal(mutedPatch.outputs[0].muted,true);assert.equal(mutedPatch.outputs[1].muted,false);
 const badMute=plain(mutedLibrary);badMute.slots[0].patch.outputs[0].muted='false';assert.throws(()=>sim.importPresets(badMute));assert.deepEqual(plain(sim.exportPresets()),mutedLibrary);
 const oldV7=plain(mutedLibrary);oldV7.version=4;oldV7.slots.forEach(s=>s.patch.outputs.forEach(o=>delete o.muted));sim.importPresets(oldV7);assert.equal(sim.core.sim_muted(0),0);
 console.log('Mute: direct toggle, running silence, replay, explicit Save, boolean validation and old preset defaults passed.');
+// v0.11: all additions survive JSON/browser storage and are reachable by encoder.
+const expansion=plain(sim.exportPresets()),expansionPatch=expansion.slots.find(s=>s.slot===expansion.boot_slot).patch;
+Object.assign(expansionPatch.outputs[0],{ratio:'X3/2',shape:'SINE',extra:{loop_beats:3,logic:'XOR',partner:8}});
+for(const [i,field] of ['hits','rotate','probability','swing'].entries())expansionPatch.outputs[0].cv[field]={source:'CV1',depth:100-i*17,bias:i*11};
+sim.importPresets(expansion);const expanded=plain(sim.exportPresets());assert.deepEqual(expanded,expansion);
+assert.equal(sim.core.sim_extra(0,0),3);assert.equal(sim.core.sim_extra(0,1),3);assert.equal(sim.core.sim_extra(0,2),7);
+for(let f=6;f<10;f++){assert.equal(sim.core.sim_cv_route(0,f,0),1);assert.equal(sim.core.sim_cv_route(0,f,1),100-(f-6)*17);}
+$('right').click();$('encoder').click();for(let i=0;i<19;i++)$('right').click();assert.equal(sim.state().field,19);
+$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_extra(0,0),4);
+$('right').click();$('encoder').click();$('left').click();$('encoder').click();assert.equal(sim.core.sim_extra(0,1),2);
+$('right').click();$('encoder').click();$('left').click();$('encoder').click();assert.equal(sim.core.sim_extra(0,2),6);
+$('back').click();$('encoder').click();for(let i=0;i<6;i++)$('right').click();$('encoder').click();$('encoder').click();
+for(let i=0;i<9;i++)$('right').click();$('encoder').click();assert.equal(sim.state().cvTarget,9);
+$('right').click();$('encoder').click();$('right').click();$('encoder').click();assert.equal(sim.core.sim_cv_route(0,9,0),2);
+const expandedSession=plain(sim.session()),expandedState=plain(sim.state());sim.replay(expandedSession);assert.deepEqual(plain(sim.state()),expandedState);assert.equal(sim.core.sim_extra(0,0),4);
+const invalidExtra=plain(expansion);invalidExtra.slots[0].patch.outputs[0].extra.loop_beats=129;assert.throws(()=>sim.importPresets(invalidExtra));
+const prior=plain(expansion);prior.version=5;sim.importPresets(prior);assert.equal(sim.core.sim_extra(0,0),0);assert.equal(sim.core.sim_extra(0,1),0);assert.equal(sim.core.sim_cv_route(0,9,0),0);
+console.log('v0.11: fractional ratios, sine, beat loops, logic and new CV routes: JSON, encoder UI, replay and migration passed.');

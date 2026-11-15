@@ -59,7 +59,7 @@ or short step. Manual ratio changes restart the output.
 
 SAVE includes both settings. v0.4/v0.5 presets and JSON backups load with neutral
 groove defaults. The packed v0.6 format retains all eight slots and leaves stock
-EEPROM untouched; see [preset compatibility](presets.md#v06-format-and-compatibility).
+Current presets use partitioned EEPROM; see [preset compatibility](presets.md#v06-format-and-compatibility).
 
 ## Validation
 
